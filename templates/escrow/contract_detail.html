@@ -56,15 +56,8 @@
         <div class="card card-custom shadow-sm mb-3">
             <div class="card-body p-4 text-center">
                 <h5 class="text-navy fw-bold mb-3">Verify Your Identity</h5>
-                <p class="text-muted small mb-4">To interact with this escrow, please verify your identity first.</p>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <a href="{% url 'verify_as_participant' contract.code 'buyer' %}" class="btn btn-primary-custom w-100">I'm the Buyer</a>
-                    </div>
-                    <div class="col-6">
-                        <a href="{% url 'verify_as_participant' contract.code 'seller' %}" class="btn btn-outline-primary w-100" style="border-color:#4f8ef7;color:#4f8ef7;">I'm the Seller</a>
-                    </div>
-                </div>
+                <p class="text-muted small mb-4">To interact with this escrow, please verify your identity first by joining with the correct email.</p>
+                <a href="{% url 'join_escrow_page' %}" class="btn btn-primary-custom w-100">Join Escrow</a>
             </div>
         </div>
         {% endif %}
