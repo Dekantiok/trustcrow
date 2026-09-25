@@ -5,8 +5,8 @@ from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.urls import reverse
-from django.db import transaction
-from .models import EscrowContract, AuthOTP, SettlementVault
+from django.contrib import messages
+from .models import EscrowContract, AuthOTP
 from .forms import ContractCreationForm, SettlementVaultForm
 from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
@@ -50,21 +50,42 @@ def home_view(request):
         del request.session['active_email']
     return render(request, 'home.html')
 
-def join_escrow(request):
+def join_escrow_page(request):
+    error_message = None
+    
     if request.method == 'POST':
         code = request.POST.get('code', '').strip()
-        if EscrowContract.objects.filter(code=code).exists():
-            return redirect('contract_detail', code=code)
-        else:
-            return render(request, 'home.html', {'join_error': 'No escrow found with that code.'})
-    return redirect('home')
+        email = request.POST.get('email', '').strip().lower()
+        
+        try:
+            contract = EscrowContract.objects.get(code=code)
+            
+            if contract.status != 'awaiting_counterparty':
+                error_message = "This escrow is not currently accepting counterparty verification."
+            elif email != contract.counterparty_email.lower():
+                error_message = "The email does not match the counterparty linked to this escrow."
+            else:
+                otp_code = generate_otp()
+                expires_at = now() + datetime.timedelta(minutes=15)
+                AuthOTP.objects.create(
+                    email=email,
+                    otp_code=otp_code,
+                    intent='join',
+                    expires_at=expires_at
+                )
+                send_otp_via_termii(email, otp_code)
+                return redirect('counterparty_verify_otp', code=contract.code)
+        except EscrowContract.DoesNotExist:
+            error_message = "No escrow found with that code."
+    
+    return render(request, 'escrow/join_escrow.html', {'error_message': error_message})
 
 def create_contract(request):
     if request.method == 'POST':
         form = ContractCreationForm(request.POST)
         if form.is_valid():
             contract = form.save(commit=False)
-            contract.code = generate_secure_code(20)
+            contract.code = generate_secure_code(9)
             contract.service_fee = calculate_service_fee(contract.amount)
             contract.status = 'pending_verification'
             contract.gateway_reference = f"{contract.code}_{int(now().timestamp())}"
@@ -131,7 +152,6 @@ def contract_detail(request, code):
         'contract': contract,
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
-        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and current_user != contract.counterparty_email),
         'show_payment_button': (contract.status == 'awaiting_funding' and is_buyer),
         'show_buyer_confirm': (contract.status == 'in_inspection' and is_buyer),
         'show_seller_vault_form': (contract.status in ['in_inspection', 'pending_payout'] and is_seller and not vault),
@@ -141,22 +161,6 @@ def contract_detail(request, code):
         'current_user': current_user,
         'vault': vault,
     }
-
-    if request.method == 'POST' and contract.status == 'awaiting_counterparty':
-        submitted_email = request.POST.get('email', '').strip().lower()
-        if submitted_email == contract.counterparty_email.lower():
-            otp_code = generate_otp()
-            expires_at = now() + datetime.timedelta(minutes=15)
-            AuthOTP.objects.create(
-                email=submitted_email,
-                otp_code=otp_code,
-                intent='join',
-                expires_at=expires_at
-            )
-            send_otp_via_termii(submitted_email, otp_code)
-            return redirect('counterparty_verify_otp', code=contract.code)
-        else:
-            context['email_error'] = "Access denied. Only the linked counterparty email can join this escrow."
 
     return render(request, 'escrow/contract_detail.html', context)
 
@@ -207,7 +211,9 @@ def initiate_payment(request, code):
     
     if result.get('status') and result.get('auth_url'):
         return redirect(result['auth_url'])
-    return render(request, 'escrow/payment_error.html', {'error': 'Failed to initialize payment.'})
+    
+    messages.error(request, "Payment initialization failed. Please try again.")
+    return redirect('home')
 
 def payment_callback(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
@@ -310,4 +316,5 @@ def trigger_payout(request, code):
         contract.save()
         return redirect('contract_detail', code=contract.code)
         
-    return render(request, 'escrow/payment_error.html', {'error': 'Payout failed. Please try again or contact support.'})
+    messages.error(request, "Payout failed. Please try again or contact support.")
+    return redirect('contract_detail', code=contract.code)

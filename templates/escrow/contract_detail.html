@@ -19,7 +19,7 @@
                     <h3 class="text-navy fw-bold mb-0">{{ contract.title }}</h3>
                     <span class="badge {{ badge_class }} px-3 py-2">{{ status_label }}</span>
                 </div>
-                <p class="text-muted small mono-text mb-1">REF: {{ contract.code }}</p>
+                <p class="text-muted small mono-text mb-1">Escrow Code: {{ contract.code }}</p>
                 <hr>
                 <p class="mb-3">{{ contract.description }}</p>
 
@@ -51,25 +51,6 @@
                 </div>
             </div>
         </div>
-
-        {% if show_counterparty_form %}
-        <div class="card card-custom shadow-sm">
-            <div class="card-body p-4">
-                <h5 class="text-navy fw-bold mb-3">Accept This Contract</h5>
-                <p class="text-muted small mb-3">Enter your email to confirm you are the counterparty on this escrow.</p>
-                {% if email_error %}
-                <div class="alert alert-danger py-2 small">{{ email_error }}</div>
-                {% endif %}
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary-custom w-100">Verify & Accept</button>
-                </form>
-            </div>
-        </div>
-        {% endif %}
 
         {% if show_payment_button %}
         <div class="card card-custom shadow-sm border-primary">

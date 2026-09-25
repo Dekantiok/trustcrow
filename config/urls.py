@@ -5,11 +5,11 @@ from escrow import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.home_view, name='home'),
-    path('join/', views.join_escrow, name='join_escrow'),
+    path('join/', views.join_escrow_page, name='join_escrow_page'),
     path('create/', views.create_contract, name='create_contract'),
     path('verify/<str:code>/', views.verify_otp_view, name='verify_otp'),
     path('escrow/<str:code>/', views.contract_detail, name='contract_detail'),
-    path('escrow/<str:code>/join/', views.counterparty_verify_otp, name='counterparty_verify_otp'),
+    path('escrow/<str:code>/verify/', views.counterparty_verify_otp, name='counterparty_verify_otp'),
     path('escrow/<str:code>/pay/', views.initiate_payment, name='initiate_payment'),
     path('escrow/<str:code>/callback/', views.payment_callback, name='payment_callback'),
     path('webhooks/paystack/', views.paystack_webhook, name='paystack_webhook'),

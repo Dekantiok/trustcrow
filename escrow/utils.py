@@ -1,7 +1,7 @@
 import secrets
 import string
 
-def generate_secure_code(length=20):
+def generate_secure_code(length=9):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 

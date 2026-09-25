@@ -1,7 +1,14 @@
-import requests
 from django.conf import settings
+import requests
 
 def send_otp_via_termii(email, otp_code):
+    if settings.DEBUG:
+        print(f"\n{'='*50}")
+        print(f"DEVELOPMENT MODE: OTP FOR {email}")
+        print(f"YOUR OTP IS: {otp_code}")
+        print(f"{'='*50}\n")
+        return True
+
     api_key = getattr(settings, 'TERMII_API_KEY', 'dummy_key')
     email_config_id = getattr(settings, 'TERMII_EMAIL_CONFIG_ID', 'default_config')
     
