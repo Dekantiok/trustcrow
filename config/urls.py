@@ -10,4 +10,7 @@ urlpatterns = [
     path('verify/<str:code>/', views.verify_otp_view, name='verify_otp'),
     path('escrow/<str:code>/', views.contract_detail, name='contract_detail'),
     path('escrow/<str:code>/join/', views.counterparty_verify_otp, name='counterparty_verify_otp'),
+    path('escrow/<str:code>/pay/', views.initiate_payment, name='initiate_payment'),
+    path('escrow/<str:code>/callback/', views.payment_callback, name='payment_callback'),
+    path('webhooks/paystack/', views.paystack_webhook, name='paystack_webhook'),
 ]

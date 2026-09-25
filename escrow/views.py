@@ -1,11 +1,16 @@
 import datetime
+import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.timezone import now
+from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.urls import reverse
 from .models import EscrowContract, AuthOTP
 from .forms import ContractCreationForm
 from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
 from .notifications import send_otp_via_termii
+from .gateways import get_payment_gateway
 
 STATUS_LABELS = {
     'pending_verification': 'Pending Verification',
@@ -105,6 +110,7 @@ def contract_detail(request, code):
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
         'show_counterparty_form': contract.status == 'awaiting_counterparty',
+        'show_payment_button': contract.status == 'awaiting_funding',
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
     }
@@ -157,3 +163,49 @@ def counterparty_verify_otp(request, code):
         'contract': contract,
         'error_message': error_message,
     })
+
+def initiate_payment(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    if contract.status != 'awaiting_funding':
+        return redirect('contract_detail', code=contract.code)
+
+    gateway = get_payment_gateway()
+    return_url = request.build_absolute_uri(reverse('payment_callback', kwargs={'code': contract.code}))
+    
+    result = gateway.initialize_vault_payment(contract, return_url)
+    
+    if result.get('status') and result.get('auth_url'):
+        return redirect(result['auth_url'])
+    
+    return render(request, 'escrow/payment_error.html', {'error': 'Failed to initialize payment.'})
+
+def payment_callback(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    return render(request, 'escrow/payment_callback.html', {'contract': contract})
+
+@csrf_exempt
+def paystack_webhook(request):
+    if request.method != 'POST':
+        return HttpResponseBadRequest("Method not allowed")
+
+    gateway = get_payment_gateway()
+    payload_data = gateway.verify_incoming_webhook(request.headers, request.body)
+    
+    if not payload_data:
+        return HttpResponseBadRequest("Invalid signature")
+
+    event = payload_data.get('event')
+    data = payload_data.get('data', {})
+    reference = data.get('reference')
+
+    if event == 'charge.success' and reference:
+        try:
+            contract = EscrowContract.objects.get(gateway_reference=reference)
+            if contract.status == 'awaiting_funding':
+                contract.status = 'in_inspection'
+                contract.inspection_ends = now() + datetime.timedelta(days=contract.inspection_days)
+                contract.save()
+        except EscrowContract.DoesNotExist:
+            pass
+
+    return HttpResponse("Webhook received", status=200)

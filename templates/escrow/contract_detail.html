@@ -57,11 +57,9 @@
             <div class="card-body p-4">
                 <h5 class="text-navy fw-bold mb-3">Accept This Contract</h5>
                 <p class="text-muted small mb-3">Enter your email to confirm you are the counterparty on this escrow.</p>
-
                 {% if email_error %}
                 <div class="alert alert-danger py-2 small">{{ email_error }}</div>
                 {% endif %}
-
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -69,6 +67,16 @@
                     </div>
                     <button type="submit" class="btn btn-primary-custom w-100">Verify & Accept</button>
                 </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_payment_button %}
+        <div class="card card-custom shadow-sm border-primary">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Ready to Fund Escrow</h5>
+                <p class="text-muted small mb-4">Click below to securely complete the payment via Paystack.</p>
+                <a href="{% url 'initiate_payment' contract.code %}" class="btn btn-primary-custom btn-lg w-100">Proceed to Payment</a>
             </div>
         </div>
         {% endif %}
