@@ -52,16 +52,6 @@
             </div>
         </div>
 
-        {% if not current_user %}
-        <div class="card card-custom shadow-sm mb-3">
-            <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Verify Your Identity</h5>
-                <p class="text-muted small mb-4">To interact with this escrow, please verify your identity first by joining with the correct email.</p>
-                <a href="{% url 'join_escrow_page' %}" class="btn btn-primary-custom w-100">Join Escrow</a>
-            </div>
-        </div>
-        {% endif %}
-
         {% if show_payment_button %}
         <div class="card card-custom shadow-sm border-primary">
             <div class="card-body p-4 text-center">
