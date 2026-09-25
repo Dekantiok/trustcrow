@@ -3,7 +3,7 @@ import json
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.urls import reverse
 from .models import EscrowContract, AuthOTP
 from .forms import ContractCreationForm
@@ -34,7 +34,19 @@ STATUS_BADGES = {
     'cancelled': 'bg-secondary',
 }
 
+def get_buyer_email(contract):
+    if contract.creator_role == 'buyer':
+        return contract.creator_email
+    return contract.counterparty_email
+
+def get_seller_email(contract):
+    if contract.creator_role == 'seller':
+        return contract.creator_email
+    return contract.counterparty_email
+
 def home_view(request):
+    if 'active_email' in request.session:
+        del request.session['active_email']
     return render(request, 'home.html')
 
 def join_escrow(request):
@@ -89,6 +101,7 @@ def verify_otp_view(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_counterparty'
                 contract.save()
+                request.session['active_email'] = contract.creator_email
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -104,15 +117,18 @@ def verify_otp_view(request, code):
 
 def contract_detail(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
+    current_user = request.session.get('active_email')
+    buyer_email = get_buyer_email(contract)
 
     context = {
         'contract': contract,
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
-        'show_counterparty_form': contract.status == 'awaiting_counterparty',
-        'show_payment_button': contract.status == 'awaiting_funding',
+        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and current_user != contract.counterparty_email),
+        'show_payment_button': (contract.status == 'awaiting_funding' and current_user == buyer_email),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
+        'current_user': current_user,
     }
 
     if request.method == 'POST' and contract.status == 'awaiting_counterparty':
@@ -151,6 +167,7 @@ def counterparty_verify_otp(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_funding'
                 contract.save()
+                request.session['active_email'] = contract.counterparty_email
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -166,6 +183,11 @@ def counterparty_verify_otp(request, code):
 
 def initiate_payment(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
+    
+    buyer_email = get_buyer_email(contract)
+    if request.session.get('active_email') != buyer_email:
+        return HttpResponseForbidden("Only the buyer can fund this escrow.")
+
     if contract.status != 'awaiting_funding':
         return redirect('contract_detail', code=contract.code)
 
