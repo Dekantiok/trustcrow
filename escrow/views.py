@@ -12,6 +12,7 @@ from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
 from .notifications import send_otp_via_termii
 from .gateways import get_payment_gateway
+from .bank_verification import verify_bank_account, get_bank_name
 
 STATUS_LABELS = {
     'pending_verification': 'Pending Verification',
@@ -281,9 +282,16 @@ def seller_add_vault(request, code):
         form = SettlementVaultForm(request.POST)
         if form.is_valid():
             vault = form.save(commit=False)
-            vault.contract = contract
-            vault.save()
-            return redirect('contract_detail', code=contract.code)
+            
+            verification = verify_bank_account(vault.account_number, vault.bank_code)
+            if verification.get('status'):
+                vault.account_name = verification['account_name']
+                vault.bank_name = get_bank_name(vault.bank_code)
+                vault.contract = contract
+                vault.save()
+                return redirect('contract_detail', code=contract.code)
+            else:
+                messages.error(request, f"Bank account verification failed: {verification.get('error', 'Unknown error')}")
     else:
         form = SettlementVaultForm()
         
