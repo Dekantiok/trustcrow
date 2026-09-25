@@ -213,7 +213,7 @@ def initiate_payment(request, code):
         return redirect(result['auth_url'])
     
     messages.error(request, "Payment initialization failed. Please try again.")
-    return redirect('home')
+    return redirect('contract_detail', code=contract.code)
 
 def payment_callback(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
