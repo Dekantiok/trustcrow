@@ -51,6 +51,22 @@ def get_seller_email(contract):
         return contract.creator_email
     return contract.counterparty_email
 
+def execute_auto_payout(contract):
+    vault = getattr(contract, 'settlement_vault', None)
+    if not vault:
+        return False
+    if contract.fee_payer == 'seller':
+        total_disbursement = contract.amount - contract.service_fee
+    else:
+        total_disbursement = contract.amount
+    gateway = get_payment_gateway()
+    result = gateway.execute_seller_payout(vault, total_disbursement)
+    if result.get('status') or result.get('message') == 'Success':
+        contract.status = 'completed'
+        contract.save()
+        return True
+    return False
+
 def home_view(request):
     if 'active_email' in request.session:
         del request.session['active_email']
@@ -134,8 +150,8 @@ def contract_detail(request, code):
         'show_payment_button': (contract.status == 'awaiting_funding' and is_buyer),
         'show_seller_dispatch_button': (contract.status == 'awaiting_dispatch' and is_seller),
         'show_buyer_confirm': (contract.status == 'in_transit' and is_buyer),
-        'show_seller_vault_form': (contract.status in ['in_transit', 'in_inspection', 'pending_payout'] and is_seller and not vault),
-        'show_payout_button': (contract.status == 'pending_payout' and is_seller and vault),
+        'show_seller_vault_form': (contract.status in ['awaiting_dispatch', 'in_transit', 'in_inspection'] and is_seller and not vault),
+        'show_seller_waiting': (contract.status in ['in_transit', 'in_inspection', 'pending_payout'] and is_seller and vault),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
         'current_user': current_user,
@@ -177,7 +193,9 @@ def initiate_payment(request, code):
     result = gateway.initialize_vault_payment(contract, return_url)
     if result.get('status') and result.get('auth_url'):
         return redirect(result['auth_url'])
-    messages.error(request, "Payment initialization failed. Please try again.")
+    print(f"\n[PAYSTACK INIT FAILED] Reference: {contract.gateway_reference}")
+    print(f"[PAYSTACK INIT FAILED] Error Details: {result}")
+    messages.error(request, f"Payment initialization failed: {result.get('error', 'Unknown error')}")
     return redirect('contract_detail', code=contract.code)
 
 def payment_callback(request, code):
@@ -231,8 +249,8 @@ def buyer_confirm_delivery(request, code):
     if request.method == 'POST':
         contract.status = 'pending_payout'
         contract.buyer_confirmed = True
-        contract.inspection_ends = now() + datetime.timedelta(days=contract.inspection_days)
         contract.save()
+        execute_auto_payout(contract)
     return redirect('contract_detail', code=contract.code)
 
 def seller_add_vault(request, code):
@@ -240,7 +258,7 @@ def seller_add_vault(request, code):
     seller_email = get_seller_email(contract)
     if request.session.get('active_email') != seller_email:
         return HttpResponseForbidden("Only the seller can add payout details.")
-    if contract.status not in ['in_transit', 'in_inspection', 'pending_payout']:
+    if contract.status not in ['awaiting_dispatch', 'in_transit', 'in_inspection']:
         return redirect('contract_detail', code=contract.code)
     if hasattr(contract, 'settlement_vault'):
         return redirect('contract_detail', code=contract.code)
@@ -260,26 +278,3 @@ def seller_add_vault(request, code):
     else:
         form = SettlementVaultForm()
     return render(request, 'escrow/add_vault.html', {'form': form, 'contract': contract})
-
-def trigger_payout(request, code):
-    contract = get_object_or_404(EscrowContract, code=code)
-    seller_email = get_seller_email(contract)
-    if request.session.get('active_email') != seller_email:
-        return HttpResponseForbidden("Only the seller can trigger payout.")
-    if contract.status != 'pending_payout':
-        return redirect('contract_detail', code=contract.code)
-    vault = getattr(contract, 'settlement_vault', None)
-    if not vault:
-        return redirect('seller_add_vault', code=contract.code)
-    if contract.fee_payer == 'seller':
-        total_disbursement = contract.amount - contract.service_fee
-    else:
-        total_disbursement = contract.amount
-    gateway = get_payment_gateway()
-    result = gateway.execute_seller_payout(vault, total_disbursement)
-    if result.get('status') or result.get('message') == 'Success':
-        contract.status = 'completed'
-        contract.save()
-        return redirect('contract_detail', code=contract.code)
-    messages.error(request, "Payout failed. Please try again or contact support.")
-    return redirect('contract_detail', code=contract.code)

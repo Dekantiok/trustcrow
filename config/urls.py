@@ -16,5 +16,4 @@ urlpatterns = [
     path('escrow/<str:code>/dispatch/', views.seller_confirm_dispatch, name='seller_confirm_dispatch'),
     path('escrow/<str:code>/confirm/', views.buyer_confirm_delivery, name='buyer_confirm_delivery'),
     path('escrow/<str:code>/vault/', views.seller_add_vault, name='seller_add_vault'),
-    path('escrow/<str:code>/payout/', views.trigger_payout, name='trigger_payout'),
 ]
