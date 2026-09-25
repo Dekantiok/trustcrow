@@ -81,6 +81,43 @@
         </div>
         {% endif %}
 
+        {% if show_buyer_confirm %}
+        <div class="card card-custom shadow-sm border-success">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Confirm Delivery</h5>
+                <p class="text-muted small mb-4">Have you received the item and verified it meets the agreed conditions?</p>
+                <form method="post" action="{% url 'buyer_confirm_delivery' contract.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg w-100">Yes, Confirm Delivery</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_seller_vault_form %}
+        <div class="card card-custom shadow-sm border-warning">
+            <div class="card-body p-4">
+                <h5 class="text-navy fw-bold mb-3">Add Payout Details</h5>
+                <p class="text-muted small mb-3">Provide your bank account details to receive funds once the buyer confirms delivery.</p>
+                <a href="{% url 'seller_add_vault' contract.code %}" class="btn btn-primary-custom w-100">Enter Bank Details</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_payout_button %}
+        <div class="card card-custom shadow-sm border-success">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Funds Ready for Release</h5>
+                <p class="text-muted small mb-2">Bank: <strong>{{ vault.bank_name }}</strong></p>
+                <p class="text-muted small mb-4 mono-text">Account: {{ vault.account_number }}</p>
+                <form method="post" action="{% url 'trigger_payout' contract.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg w-100">Request Payout to Bank</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 </div>
 {% endblock %}

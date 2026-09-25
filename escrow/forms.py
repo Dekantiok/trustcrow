@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import EscrowContract
+from .models import EscrowContract, SettlementVault
 
 class ContractCreationForm(forms.ModelForm):
     class Meta:
@@ -19,3 +19,11 @@ class ContractCreationForm(forms.ModelForm):
             raise ValidationError("The creator and counterparty cannot use the same email address.")
         
         return cleaned_data
+
+class SettlementVaultForm(forms.ModelForm):
+    class Meta:
+        model = SettlementVault
+        fields = ['bank_name', 'bank_code', 'account_number', 'account_name']
+        widgets = {
+            'account_number': forms.TextInput(attrs={'maxlength': 10, 'pattern': '\d{10}'}),
+        }

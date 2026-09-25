@@ -13,4 +13,7 @@ urlpatterns = [
     path('escrow/<str:code>/pay/', views.initiate_payment, name='initiate_payment'),
     path('escrow/<str:code>/callback/', views.payment_callback, name='payment_callback'),
     path('webhooks/paystack/', views.paystack_webhook, name='paystack_webhook'),
+    path('escrow/<str:code>/confirm/', views.buyer_confirm_delivery, name='buyer_confirm_delivery'),
+    path('escrow/<str:code>/vault/', views.seller_add_vault, name='seller_add_vault'),
+    path('escrow/<str:code>/payout/', views.trigger_payout, name='trigger_payout'),
 ]

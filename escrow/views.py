@@ -5,8 +5,9 @@ from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
 from django.urls import reverse
-from .models import EscrowContract, AuthOTP
-from .forms import ContractCreationForm
+from django.db import transaction
+from .models import EscrowContract, AuthOTP, SettlementVault
+from .forms import ContractCreationForm, SettlementVaultForm
 from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
 from .notifications import send_otp_via_termii
@@ -119,25 +120,30 @@ def contract_detail(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     current_user = request.session.get('active_email')
     buyer_email = get_buyer_email(contract)
+    seller_email = get_seller_email(contract)
 
-    is_creator = (current_user == contract.creator_email)
-    is_counterparty = (current_user == contract.counterparty_email)
+    is_buyer = (current_user == buyer_email)
+    is_seller = (current_user == seller_email)
+
+    vault = getattr(contract, 'settlement_vault', None)
 
     context = {
         'contract': contract,
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
-        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and not is_creator and not is_counterparty),
-        'show_payment_button': (contract.status == 'awaiting_funding' and current_user == buyer_email),
+        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and current_user != contract.counterparty_email),
+        'show_payment_button': (contract.status == 'awaiting_funding' and is_buyer),
+        'show_buyer_confirm': (contract.status == 'in_inspection' and is_buyer),
+        'show_seller_vault_form': (contract.status in ['in_inspection', 'pending_payout'] and is_seller and not vault),
+        'show_payout_button': (contract.status == 'pending_payout' and is_seller and vault),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
         'current_user': current_user,
+        'vault': vault,
     }
 
     if request.method == 'POST' and contract.status == 'awaiting_counterparty':
         submitted_email = request.POST.get('email', '').strip().lower()
-        
-        # STRICT ENFORCEMENT: Only the exact linked email can trigger the OTP
         if submitted_email == contract.counterparty_email.lower():
             otp_code = generate_otp()
             expires_at = now() + datetime.timedelta(minutes=15)
@@ -188,7 +194,6 @@ def counterparty_verify_otp(request, code):
 
 def initiate_payment(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
-    
     buyer_email = get_buyer_email(contract)
     if request.session.get('active_email') != buyer_email:
         return HttpResponseForbidden("Only the buyer can fund this escrow.")
@@ -198,12 +203,10 @@ def initiate_payment(request, code):
 
     gateway = get_payment_gateway()
     return_url = request.build_absolute_uri(reverse('payment_callback', kwargs={'code': contract.code}))
-    
     result = gateway.initialize_vault_payment(contract, return_url)
     
     if result.get('status') and result.get('auth_url'):
         return redirect(result['auth_url'])
-    
     return render(request, 'escrow/payment_error.html', {'error': 'Failed to initialize payment.'})
 
 def payment_callback(request, code):
@@ -236,3 +239,75 @@ def paystack_webhook(request):
             pass
 
     return HttpResponse("Webhook received", status=200)
+
+def buyer_confirm_delivery(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    buyer_email = get_buyer_email(contract)
+    
+    if request.session.get('active_email') != buyer_email:
+        return HttpResponseForbidden("Only the buyer can confirm delivery.")
+        
+    if contract.status != 'in_inspection':
+        return redirect('contract_detail', code=contract.code)
+        
+    if request.method == 'POST':
+        contract.status = 'pending_payout'
+        contract.buyer_confirmed = True
+        contract.save()
+        return redirect('contract_detail', code=contract.code)
+        
+    return redirect('contract_detail', code=contract.code)
+
+def seller_add_vault(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    seller_email = get_seller_email(contract)
+    
+    if request.session.get('active_email') != seller_email:
+        return HttpResponseForbidden("Only the seller can add payout details.")
+        
+    if contract.status not in ['in_inspection', 'pending_payout']:
+        return redirect('contract_detail', code=contract.code)
+        
+    if hasattr(contract, 'settlement_vault'):
+        return redirect('contract_detail', code=contract.code)
+        
+    if request.method == 'POST':
+        form = SettlementVaultForm(request.POST)
+        if form.is_valid():
+            vault = form.save(commit=False)
+            vault.contract = contract
+            vault.save()
+            return redirect('contract_detail', code=contract.code)
+    else:
+        form = SettlementVaultForm()
+        
+    return render(request, 'escrow/add_vault.html', {'form': form, 'contract': contract})
+
+def trigger_payout(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    seller_email = get_seller_email(contract)
+    
+    if request.session.get('active_email') != seller_email:
+        return HttpResponseForbidden("Only the seller can trigger payout.")
+        
+    if contract.status != 'pending_payout':
+        return redirect('contract_detail', code=contract.code)
+        
+    vault = getattr(contract, 'settlement_vault', None)
+    if not vault:
+        return redirect('seller_add_vault', code=contract.code)
+        
+    if contract.fee_payer == 'seller':
+        total_disbursement = contract.amount - contract.service_fee
+    else:
+        total_disbursement = contract.amount
+        
+    gateway = get_payment_gateway()
+    result = gateway.execute_seller_payout(vault, total_disbursement)
+    
+    if result.get('status') or result.get('message') == 'Success':
+        contract.status = 'completed'
+        contract.save()
+        return redirect('contract_detail', code=contract.code)
+        
+    return render(request, 'escrow/payment_error.html', {'error': 'Payout failed. Please try again or contact support.'})
