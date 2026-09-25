@@ -51,6 +51,12 @@ def get_seller_email(contract):
         return contract.creator_email
     return contract.counterparty_email
 
+def get_verified_email(request, contract):
+    return request.session.get(f'verified_{contract.code}')
+
+def set_verified_email(request, contract, email):
+    request.session[f'verified_{contract.code}'] = email
+
 def execute_auto_payout(contract):
     vault = getattr(contract, 'settlement_vault', None)
     if not vault:
@@ -68,8 +74,6 @@ def execute_auto_payout(contract):
     return False
 
 def home_view(request):
-    if 'active_email' in request.session:
-        del request.session['active_email']
     return render(request, 'home.html')
 
 def join_escrow_page(request):
@@ -124,7 +128,7 @@ def verify_otp_view(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_counterparty'
                 contract.save()
-                request.session['active_email'] = contract.creator_email
+                set_verified_email(request, contract, contract.creator_email)
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -136,7 +140,7 @@ def verify_otp_view(request, code):
 
 def contract_detail(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
-    current_user = request.session.get('active_email')
+    current_user = get_verified_email(request, contract)
     buyer_email = get_buyer_email(contract)
     seller_email = get_seller_email(contract)
     is_buyer = (current_user == buyer_email)
@@ -171,7 +175,7 @@ def counterparty_verify_otp(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_funding'
                 contract.save()
-                request.session['active_email'] = contract.counterparty_email
+                set_verified_email(request, contract, contract.counterparty_email)
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -184,7 +188,7 @@ def counterparty_verify_otp(request, code):
 def initiate_payment(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     buyer_email = get_buyer_email(contract)
-    if request.session.get('active_email') != buyer_email:
+    if get_verified_email(request, contract) != buyer_email:
         return HttpResponseForbidden("Only the buyer can fund this escrow.")
     if contract.status != 'awaiting_funding':
         return redirect('contract_detail', code=contract.code)
@@ -229,7 +233,7 @@ def paystack_webhook(request):
 def seller_confirm_dispatch(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     seller_email = get_seller_email(contract)
-    if request.session.get('active_email') != seller_email:
+    if get_verified_email(request, contract) != seller_email:
         return HttpResponseForbidden("Only the seller can confirm dispatch.")
     if contract.status != 'awaiting_dispatch':
         return redirect('contract_detail', code=contract.code)
@@ -242,7 +246,7 @@ def seller_confirm_dispatch(request, code):
 def buyer_confirm_delivery(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     buyer_email = get_buyer_email(contract)
-    if request.session.get('active_email') != buyer_email:
+    if get_verified_email(request, contract) != buyer_email:
         return HttpResponseForbidden("Only the buyer can confirm delivery.")
     if contract.status != 'in_transit':
         return redirect('contract_detail', code=contract.code)
@@ -256,7 +260,7 @@ def buyer_confirm_delivery(request, code):
 def seller_add_vault(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     seller_email = get_seller_email(contract)
-    if request.session.get('active_email') != seller_email:
+    if get_verified_email(request, contract) != seller_email:
         return HttpResponseForbidden("Only the seller can add payout details.")
     if contract.status not in ['awaiting_dispatch', 'in_transit', 'in_inspection']:
         return redirect('contract_detail', code=contract.code)

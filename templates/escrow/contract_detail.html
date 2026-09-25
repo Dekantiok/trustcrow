@@ -52,6 +52,23 @@
             </div>
         </div>
 
+        {% if not current_user %}
+        <div class="card card-custom shadow-sm mb-3">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Verify Your Identity</h5>
+                <p class="text-muted small mb-4">To interact with this escrow, please verify your identity first.</p>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <a href="{% url 'verify_as_participant' contract.code 'buyer' %}" class="btn btn-primary-custom w-100">I'm the Buyer</a>
+                    </div>
+                    <div class="col-6">
+                        <a href="{% url 'verify_as_participant' contract.code 'seller' %}" class="btn btn-outline-primary w-100" style="border-color:#4f8ef7;color:#4f8ef7;">I'm the Seller</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {% if show_payment_button %}
         <div class="card card-custom shadow-sm border-primary">
             <div class="card-body p-4 text-center">
@@ -88,11 +105,11 @@
         {% if show_buyer_confirm %}
         <div class="card card-custom shadow-sm border-success">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Confirm Delivery</h5>
-                <p class="text-muted small mb-4">Have you received the item and verified it meets the agreed conditions? Confirming will release funds to the seller.</p>
+                <h5 class="text-navy fw-bold mb-3">Release Funds to Seller</h5>
+                <p class="text-muted small mb-4">Have you received the item and verified it meets the agreed conditions? This will release funds to the seller's bank account.</p>
                 <form method="post" action="{% url 'buyer_confirm_delivery' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-success btn-lg w-100">Yes, Release Funds to Seller</button>
+                    <button type="submit" class="btn btn-success btn-lg w-100">Yes, Release Funds Now</button>
                 </form>
             </div>
         </div>
@@ -102,7 +119,7 @@
         <div class="card card-custom shadow-sm">
             <div class="card-body p-4 text-center">
                 <h5 class="text-navy fw-bold mb-3">Waiting for Buyer Confirmation</h5>
-                <p class="text-muted small mb-2">Your bank details are saved. Funds will be released automatically once the buyer confirms delivery.</p>
+                <p class="text-muted small mb-2">Your bank details are saved. Funds will be released once the buyer confirms delivery or the inspection period expires.</p>
                 <p class="text-muted small mb-0">Bank: <strong>{{ vault.bank_name }}</strong> &middot; <span class="mono-text">{{ vault.account_number }}</span></p>
             </div>
         </div>
