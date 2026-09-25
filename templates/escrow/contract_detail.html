@@ -13,7 +13,7 @@
 <div class="row justify-content-center">
     <div class="col-12 col-md-8 col-lg-6">
 
-        <div class="card card-custom shadow-sm mb-4">
+        <div class="card card-custom shadow-sm mb-4" hx-get="." hx-trigger="every 10s" hx-swap="outerHTML">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-start mb-3">
                     <h3 class="text-navy fw-bold mb-0">{{ contract.title }}</h3>
@@ -58,6 +58,19 @@
                 <h5 class="text-navy fw-bold mb-3">Ready to Fund Escrow</h5>
                 <p class="text-muted small mb-4">Click below to securely complete the payment via Paystack.</p>
                 <a href="{% url 'initiate_payment' contract.code %}" class="btn btn-primary-custom btn-lg w-100">Proceed to Payment</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_seller_dispatch_button %}
+        <div class="card card-custom shadow-sm border-warning">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Awaiting Dispatch</h5>
+                <p class="text-muted small mb-4">Funds are secured. Confirm that you have dispatched the item to the buyer.</p>
+                <form method="post" action="{% url 'seller_confirm_dispatch' contract.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning btn-lg w-100 text-dark">Confirm Item Dispatched</button>
+                </form>
             </div>
         </div>
         {% endif %}

@@ -5,6 +5,8 @@ class EscrowContract(models.Model):
         ('pending_verification', 'Pending Verification'),
         ('awaiting_counterparty', 'Awaiting Counterparty'),
         ('awaiting_funding', 'Awaiting Funding'),
+        ('awaiting_dispatch', 'Awaiting Dispatch'),
+        ('in_transit', 'In Transit'),
         ('in_inspection', 'In Inspection'),
         ('pending_payout', 'Pending Payout'),
         ('completed', 'Completed'),

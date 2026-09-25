@@ -7,21 +7,16 @@ from .base import PaymentGatewayBase
 
 class PaystackGateway(PaymentGatewayBase):
     def __init__(self):
-        # We will add these keys to settings.py later. Using dummy defaults for now.
         self.secret_key = getattr(settings, 'PAYSTACK_SECRET_KEY', 'sk_test_dummy')
         self.base_url = "https://api.paystack.co"
 
     def initialize_vault_payment(self, escrow_record, return_url):
-        # Calculate total based on fee_payer rule from specs
         if escrow_record.fee_payer == 'buyer':
             total_amount = escrow_record.amount + escrow_record.service_fee
         else:
             total_amount = escrow_record.amount
 
-        # Paystack requires amount in kobo (multiply by 100)
         amount_in_kobo = int(total_amount * 100)
-
-        # Determine who is paying
         payer_email = escrow_record.creator_email if escrow_record.creator_role == 'buyer' else escrow_record.counterparty_email
 
         payload = {
@@ -43,7 +38,6 @@ class PaystackGateway(PaymentGatewayBase):
             return {"status": False, "error": str(e)}
 
     def verify_incoming_webhook(self, request_headers, request_body):
-        # Validate Paystack signature
         signature = request_headers.get('x-paystack-signature')
         if not signature:
             return False
@@ -60,7 +54,6 @@ class PaystackGateway(PaymentGatewayBase):
         return json.loads(request_body.decode('utf-8'))
 
     def execute_seller_payout(self, settlement_vault_record, total_disbursement):
-        # Paystack Transfers API
         amount_in_kobo = int(total_disbursement * 100)
         payload = {
             "source": "balance",

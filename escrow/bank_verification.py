@@ -1,3 +1,4 @@
+import requests
 from django.conf import settings
 
 MOCK_BANKS = {
@@ -27,9 +28,6 @@ def verify_bank_account(account_number, bank_code):
         if account_number == '0123456789':
             return {'status': True, 'account_name': 'TEST ACCOUNT NAME'}
         return {'status': True, 'account_name': f'TEST USER {account_number[-4:]}'}
-    
-    import requests
-    from django.conf import settings
     
     paystack_secret = getattr(settings, 'PAYSTACK_SECRET_KEY', 'sk_test_dummy')
     url = f"https://api.paystack.co/bank/resolve?account_number={account_number}&bank_code={bank_code}"
