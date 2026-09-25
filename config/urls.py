@@ -7,4 +7,6 @@ urlpatterns = [
     path('', views.home_view, name='home'),
     path('create/', views.create_contract, name='create_contract'),
     path('verify/<str:code>/', views.verify_otp_view, name='verify_otp'),
+    path('escrow/<str:code>/', views.contract_detail, name='contract_detail'),
+    path('escrow/<str:code>/join/', views.counterparty_verify_otp, name='counterparty_verify_otp'),
 ]

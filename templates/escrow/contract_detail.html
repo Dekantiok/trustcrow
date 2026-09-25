@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Escrow {{ contract.code }} - Trustcrow{% endblock %}
+
+{% block navbar %}
+<nav class="navbar navbar-dark navbar-custom mb-4">
+    <div class="container">
+        <span class="navbar-brand fw-bold">Trustcrow</span>
+    </div>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+
+        <div class="card card-custom shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h3 class="text-navy fw-bold mb-0">{{ contract.title }}</h3>
+                    <span class="badge {{ badge_class }} px-3 py-2">{{ status_label }}</span>
+                </div>
+                <p class="text-muted small mono-text mb-1">REF: {{ contract.code }}</p>
+                <hr>
+                <p class="mb-3">{{ contract.description }}</p>
+
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="small text-muted">Amount</div>
+                        <div class="fw-bold mono-text text-navy fs-5">{{ formatted_amount }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="small text-muted">Service Fee</div>
+                        <div class="fw-bold mono-text text-navy fs-5">{{ formatted_fee }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="small text-muted">Fee Payer</div>
+                        <div class="fw-medium text-capitalize">{{ contract.fee_payer }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="small text-muted">Inspection Window</div>
+                        <div class="fw-medium">{{ contract.inspection_days }} days</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="small text-muted">Creator</div>
+                        <div class="small mono-text">{{ contract.creator_email }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="small text-muted">Counterparty</div>
+                        <div class="small mono-text">{{ contract.counterparty_email }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if show_counterparty_form %}
+        <div class="card card-custom shadow-sm">
+            <div class="card-body p-4">
+                <h5 class="text-navy fw-bold mb-3">Accept This Contract</h5>
+                <p class="text-muted small mb-3">Enter your email to confirm you are the counterparty on this escrow.</p>
+
+                {% if email_error %}
+                <div class="alert alert-danger py-2 small">{{ email_error }}</div>
+                {% endif %}
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom w-100">Verify & Accept</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

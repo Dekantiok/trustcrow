@@ -7,6 +7,28 @@ from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
 from .notifications import send_otp_via_termii
 
+STATUS_LABELS = {
+    'pending_verification': 'Pending Verification',
+    'awaiting_counterparty': 'Awaiting Counterparty',
+    'awaiting_funding': 'Awaiting Funding',
+    'in_inspection': 'In Inspection',
+    'pending_payout': 'Pending Payout',
+    'completed': 'Completed',
+    'disputed': 'Disputed',
+    'cancelled': 'Cancelled',
+}
+
+STATUS_BADGES = {
+    'pending_verification': 'bg-warning text-dark',
+    'awaiting_counterparty': 'bg-info text-dark',
+    'awaiting_funding': 'bg-primary',
+    'in_inspection': 'bg-primary',
+    'pending_payout': 'bg-success',
+    'completed': 'bg-success',
+    'disputed': 'bg-danger',
+    'cancelled': 'bg-secondary',
+}
+
 def home_view(request):
     return render(request, 'home.html')
 
@@ -23,39 +45,36 @@ def create_contract(request):
 
             otp_code = generate_otp()
             expires_at = now() + datetime.timedelta(minutes=15)
-            
             AuthOTP.objects.create(
                 email=contract.creator_email,
                 otp_code=otp_code,
                 intent='create',
                 expires_at=expires_at
             )
-            
             send_otp_via_termii(contract.creator_email, otp_code)
-            
             return redirect('verify_otp', code=contract.code)
     else:
         form = ContractCreationForm()
-        
     return render(request, 'escrow/create_contract.html', {'form': form})
 
 def verify_otp_view(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     error_message = None
-    
+
     if request.method == 'POST':
         submitted_otp = request.POST.get('otp')
-        
         try:
-            otp_record = AuthOTP.objects.get(email=contract.creator_email, otp_code=submitted_otp, intent='create', is_used=False)
-            
+            otp_record = AuthOTP.objects.get(
+                email=contract.creator_email,
+                otp_code=submitted_otp,
+                intent='create',
+                is_used=False
+            )
             if otp_record.expires_at > now() and otp_record.attempts_left > 0:
                 otp_record.is_used = True
                 otp_record.save()
-                
                 contract.status = 'awaiting_counterparty'
                 contract.save()
-                
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -63,5 +82,69 @@ def verify_otp_view(request, code):
                 error_message = "Invalid or expired OTP."
         except AuthOTP.DoesNotExist:
             error_message = "OTP not found. Please check your email."
-            
-    return render(request, 'escrow/verify_otp.html', {'contract': contract, 'error_message': error_message})
+
+    return render(request, 'escrow/verify_otp.html', {
+        'contract': contract,
+        'error_message': error_message,
+    })
+
+def contract_detail(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+
+    context = {
+        'contract': contract,
+        'status_label': STATUS_LABELS.get(contract.status, contract.status),
+        'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
+        'show_counterparty_form': contract.status == 'awaiting_counterparty',
+        'formatted_amount': f"\u20a6{contract.amount:,.2f}",
+        'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
+    }
+
+    if request.method == 'POST' and contract.status == 'awaiting_counterparty':
+        submitted_email = request.POST.get('email', '').strip().lower()
+        if submitted_email == contract.counterparty_email.lower():
+            otp_code = generate_otp()
+            expires_at = now() + datetime.timedelta(minutes=15)
+            AuthOTP.objects.create(
+                email=submitted_email,
+                otp_code=otp_code,
+                intent='join',
+                expires_at=expires_at
+            )
+            send_otp_via_termii(submitted_email, otp_code)
+            return redirect('counterparty_verify_otp', code=contract.code)
+        else:
+            context['email_error'] = "Email does not match the counterparty on this contract."
+
+    return render(request, 'escrow/contract_detail.html', context)
+
+def counterparty_verify_otp(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    error_message = None
+
+    if request.method == 'POST':
+        submitted_otp = request.POST.get('otp')
+        try:
+            otp_record = AuthOTP.objects.get(
+                email=contract.counterparty_email,
+                otp_code=submitted_otp,
+                intent='join',
+                is_used=False
+            )
+            if otp_record.expires_at > now() and otp_record.attempts_left > 0:
+                otp_record.is_used = True
+                otp_record.save()
+                contract.status = 'awaiting_funding'
+                contract.save()
+                return redirect('contract_detail', code=contract.code)
+            else:
+                otp_record.attempts_left -= 1
+                otp_record.save()
+                error_message = "Invalid or expired OTP."
+        except AuthOTP.DoesNotExist:
+            error_message = "OTP not found. Please check your email."
+
+    return render(request, 'escrow/counterparty_verify_otp.html', {
+        'contract': contract,
+        'error_message': error_message,
+    })
