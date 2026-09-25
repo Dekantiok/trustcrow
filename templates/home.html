@@ -4,6 +4,40 @@
 <div class="text-center py-5">
     <h1 class="display-5 fw-bold text-navy">Secure P2P Transactions</h1>
     <p class="lead text-muted mt-3">Bridge the trust gap in informal digital commerce. No accounts, no wallets, just secure escrow.</p>
-    <a href="{% url 'create_contract' %}" class="btn btn-primary-custom btn-lg mt-4">Create New Escrow</a>
+</div>
+
+<div class="row g-4 justify-content-center pb-5">
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="card card-custom shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="text-accent fs-2 mb-2">＋</div>
+                <h4 class="text-navy fw-bold">Create New Escrow</h4>
+                <p class="text-muted small">Start a new transaction. You will be the creator (buyer or seller) and invite your counterparty.</p>
+                <a href="{% url 'create_contract' %}" class="btn btn-primary-custom w-100 mt-2">Start New Contract</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="card card-custom shadow-sm h-100">
+            <div class="card-body p-4">
+                <div class="text-accent fs-2 mb-2">🔗</div>
+                <h4 class="text-navy fw-bold">Join Existing Escrow</h4>
+                <p class="text-muted small">Already have a contract code from your counterparty? Paste it below to view and accept the terms.</p>
+
+                {% if join_error %}
+                <div class="alert alert-danger py-2 small">{{ join_error }}</div>
+                {% endif %}
+
+                <form method="post" action="{% url 'join_escrow' %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <input type="text" name="code" class="form-control mono-text" placeholder="Paste escrow code here" required>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary w-100" style="border-color:#4f8ef7;color:#4f8ef7;">Open Escrow</button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -32,6 +32,15 @@ STATUS_BADGES = {
 def home_view(request):
     return render(request, 'home.html')
 
+def join_escrow(request):
+    if request.method == 'POST':
+        code = request.POST.get('code', '').strip()
+        if EscrowContract.objects.filter(code=code).exists():
+            return redirect('contract_detail', code=code)
+        else:
+            return render(request, 'home.html', {'join_error': 'No escrow found with that code.'})
+    return redirect('home')
+
 def create_contract(request):
     if request.method == 'POST':
         form = ContractCreationForm(request.POST)
