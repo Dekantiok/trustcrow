@@ -7,6 +7,9 @@ from .services import calculate_service_fee
 from .utils import generate_secure_code, generate_otp
 from .notifications import send_otp_via_termii
 
+def home_view(request):
+    return render(request, 'home.html')
+
 def create_contract(request):
     if request.method == 'POST':
         form = ContractCreationForm(request.POST)
@@ -38,6 +41,7 @@ def create_contract(request):
 
 def verify_otp_view(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
+    error_message = None
     
     if request.method == 'POST':
         submitted_otp = request.POST.get('otp')
@@ -60,4 +64,4 @@ def verify_otp_view(request, code):
         except AuthOTP.DoesNotExist:
             error_message = "OTP not found. Please check your email."
             
-    return render(request, 'escrow/verify_otp.html', {'contract': contract})
+    return render(request, 'escrow/verify_otp.html', {'contract': contract, 'error_message': error_message})

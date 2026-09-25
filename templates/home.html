@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Trustcrow - Secure P2P Escrow{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+    <h1 class="display-5 fw-bold text-navy">Secure P2P Transactions</h1>
+    <p class="lead text-muted mt-3">Bridge the trust gap in informal digital commerce. No accounts, no wallets, just secure escrow.</p>
+    <a href="{% url 'create_contract' %}" class="btn btn-primary-custom btn-lg mt-4">Create New Escrow</a>
+</div>
+{% endblock %}
