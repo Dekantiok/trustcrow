@@ -120,11 +120,14 @@ def contract_detail(request, code):
     current_user = request.session.get('active_email')
     buyer_email = get_buyer_email(contract)
 
+    is_creator = (current_user == contract.creator_email)
+    is_counterparty = (current_user == contract.counterparty_email)
+
     context = {
         'contract': contract,
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
-        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and current_user != contract.counterparty_email),
+        'show_counterparty_form': (contract.status == 'awaiting_counterparty' and not is_creator and not is_counterparty),
         'show_payment_button': (contract.status == 'awaiting_funding' and current_user == buyer_email),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
@@ -133,6 +136,8 @@ def contract_detail(request, code):
 
     if request.method == 'POST' and contract.status == 'awaiting_counterparty':
         submitted_email = request.POST.get('email', '').strip().lower()
+        
+        # STRICT ENFORCEMENT: Only the exact linked email can trigger the OTP
         if submitted_email == contract.counterparty_email.lower():
             otp_code = generate_otp()
             expires_at = now() + datetime.timedelta(minutes=15)
@@ -145,7 +150,7 @@ def contract_detail(request, code):
             send_otp_via_termii(submitted_email, otp_code)
             return redirect('counterparty_verify_otp', code=contract.code)
         else:
-            context['email_error'] = "Email does not match the counterparty on this contract."
+            context['email_error'] = "Access denied. Only the linked counterparty email can join this escrow."
 
     return render(request, 'escrow/contract_detail.html', context)
 

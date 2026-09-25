@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from .models import EscrowContract
 
 class ContractCreationForm(forms.ModelForm):
@@ -8,3 +9,13 @@ class ContractCreationForm(forms.ModelForm):
         widgets = {
             'description': forms.Textarea(attrs={'rows': 4}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        creator_email = cleaned_data.get('creator_email')
+        counterparty_email = cleaned_data.get('counterparty_email')
+
+        if creator_email and counterparty_email and creator_email.lower() == counterparty_email.lower():
+            raise ValidationError("The creator and counterparty cannot use the same email address.")
+        
+        return cleaned_data
