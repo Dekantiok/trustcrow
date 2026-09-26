@@ -14,6 +14,8 @@ urlpatterns = [
     path('escrow/<str:code>/callback/', views.payment_callback, name='payment_callback'),
     path('webhooks/paystack/', views.paystack_webhook, name='paystack_webhook'),
     path('escrow/<str:code>/dispatch/', views.seller_confirm_dispatch, name='seller_confirm_dispatch'),
-    path('escrow/<str:code>/confirm/', views.buyer_confirm_delivery, name='buyer_confirm_delivery'),
+    path('escrow/<str:code>/receipt/', views.buyer_confirm_receipt, name='buyer_confirm_receipt'),
+    path('escrow/<str:code>/release/', views.buyer_release_funds, name='buyer_release_funds'),
+    path('escrow/<str:code>/dispute/', views.buyer_raise_dispute, name='buyer_raise_dispute'),
     path('escrow/<str:code>/vault/', views.seller_add_vault, name='seller_add_vault'),
 ]

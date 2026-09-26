@@ -51,11 +51,14 @@ def get_seller_email(contract):
         return contract.creator_email
     return contract.counterparty_email
 
-def get_verified_email(request, contract):
-    return request.session.get(f'verified_{contract.code}')
+def get_verified_emails(request):
+    return request.session.get('verified_emails', [])
 
-def set_verified_email(request, contract, email):
-    request.session[f'verified_{contract.code}'] = email
+def add_verified_email(request, email):
+    verified = request.session.get('verified_emails', [])
+    if email not in verified:
+        verified.append(email)
+        request.session['verified_emails'] = verified
 
 def execute_auto_payout(contract):
     vault = getattr(contract, 'settlement_vault', None)
@@ -128,7 +131,7 @@ def verify_otp_view(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_counterparty'
                 contract.save()
-                set_verified_email(request, contract, contract.creator_email)
+                add_verified_email(request, contract.creator_email)
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -140,11 +143,12 @@ def verify_otp_view(request, code):
 
 def contract_detail(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
-    current_user = get_verified_email(request, contract)
+    verified_emails = get_verified_emails(request)
     buyer_email = get_buyer_email(contract)
     seller_email = get_seller_email(contract)
-    is_buyer = (current_user == buyer_email)
-    is_seller = (current_user == seller_email)
+    
+    is_buyer = (buyer_email in verified_emails)
+    is_seller = (seller_email in verified_emails)
     vault = getattr(contract, 'settlement_vault', None)
 
     context = {
@@ -153,12 +157,15 @@ def contract_detail(request, code):
         'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
         'show_payment_button': (contract.status == 'awaiting_funding' and is_buyer),
         'show_seller_dispatch_button': (contract.status == 'awaiting_dispatch' and is_seller),
-        'show_buyer_confirm': (contract.status == 'in_transit' and is_buyer),
+        'show_buyer_confirm_receipt': (contract.status == 'in_transit' and is_buyer),
+        'show_buyer_release_funds': (contract.status == 'in_inspection' and is_buyer),
+        'show_buyer_raise_dispute': (contract.status == 'in_inspection' and is_buyer),
         'show_seller_vault_form': (contract.status in ['awaiting_dispatch', 'in_transit', 'in_inspection'] and is_seller and not vault),
         'show_seller_waiting': (contract.status in ['in_transit', 'in_inspection', 'pending_payout'] and is_seller and vault),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
-        'current_user': current_user,
+        'is_buyer': is_buyer,
+        'is_seller': is_seller,
         'vault': vault,
     }
     return render(request, 'escrow/contract_detail.html', context)
@@ -175,7 +182,7 @@ def counterparty_verify_otp(request, code):
                 otp_record.save()
                 contract.status = 'awaiting_funding'
                 contract.save()
-                set_verified_email(request, contract, contract.counterparty_email)
+                add_verified_email(request, contract.counterparty_email)
                 return redirect('contract_detail', code=contract.code)
             else:
                 otp_record.attempts_left -= 1
@@ -188,8 +195,9 @@ def counterparty_verify_otp(request, code):
 def initiate_payment(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     buyer_email = get_buyer_email(contract)
-    if get_verified_email(request, contract) != buyer_email:
-        return HttpResponseForbidden("Only the buyer can fund this escrow.")
+    verified_emails = get_verified_emails(request)
+    if buyer_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified buyer can fund this escrow.")
     if contract.status != 'awaiting_funding':
         return redirect('contract_detail', code=contract.code)
     gateway = get_payment_gateway()
@@ -233,8 +241,9 @@ def paystack_webhook(request):
 def seller_confirm_dispatch(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     seller_email = get_seller_email(contract)
-    if get_verified_email(request, contract) != seller_email:
-        return HttpResponseForbidden("Only the seller can confirm dispatch.")
+    verified_emails = get_verified_emails(request)
+    if seller_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified seller can confirm dispatch.")
     if contract.status != 'awaiting_dispatch':
         return redirect('contract_detail', code=contract.code)
     if request.method == 'POST':
@@ -243,12 +252,27 @@ def seller_confirm_dispatch(request, code):
         contract.save()
     return redirect('contract_detail', code=contract.code)
 
-def buyer_confirm_delivery(request, code):
+def buyer_confirm_receipt(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     buyer_email = get_buyer_email(contract)
-    if get_verified_email(request, contract) != buyer_email:
-        return HttpResponseForbidden("Only the buyer can confirm delivery.")
+    verified_emails = get_verified_emails(request)
+    if buyer_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified buyer can confirm receipt.")
     if contract.status != 'in_transit':
+        return redirect('contract_detail', code=contract.code)
+    if request.method == 'POST':
+        contract.status = 'in_inspection'
+        contract.inspection_ends = now() + datetime.timedelta(days=contract.inspection_days)
+        contract.save()
+    return redirect('contract_detail', code=contract.code)
+
+def buyer_release_funds(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    buyer_email = get_buyer_email(contract)
+    verified_emails = get_verified_emails(request)
+    if buyer_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified buyer can release funds.")
+    if contract.status != 'in_inspection':
         return redirect('contract_detail', code=contract.code)
     if request.method == 'POST':
         contract.status = 'pending_payout'
@@ -257,11 +281,25 @@ def buyer_confirm_delivery(request, code):
         execute_auto_payout(contract)
     return redirect('contract_detail', code=contract.code)
 
+def buyer_raise_dispute(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    buyer_email = get_buyer_email(contract)
+    verified_emails = get_verified_emails(request)
+    if buyer_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified buyer can raise a dispute.")
+    if contract.status != 'in_inspection':
+        return redirect('contract_detail', code=contract.code)
+    if request.method == 'POST':
+        contract.status = 'disputed'
+        contract.save()
+    return redirect('contract_detail', code=contract.code)
+
 def seller_add_vault(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
     seller_email = get_seller_email(contract)
-    if get_verified_email(request, contract) != seller_email:
-        return HttpResponseForbidden("Only the seller can add payout details.")
+    verified_emails = get_verified_emails(request)
+    if seller_email not in verified_emails:
+        return HttpResponseForbidden("Only the verified seller can add payout details.")
     if contract.status not in ['awaiting_dispatch', 'in_transit', 'in_inspection']:
         return redirect('contract_detail', code=contract.code)
     if hasattr(contract, 'settlement_vault'):
