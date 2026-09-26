@@ -24,7 +24,9 @@
         <div class="container">
             <a class="navbar-brand fw-bold" href="/">Trustcrow</a>
             <div class="d-flex">
+                {% if request.resolver_match.url_name != 'my_escrow' and request.resolver_match.url_name != 'my_escrow_verify_otp' and request.resolver_match.url_name != 'my_escrow_list' %}
                 <a href="{% url 'my_escrow' %}" class="btn btn-primary-custom btn-sm">My Escrow</a>
+                {% endif %}
             </div>
         </div>
     </nav>
