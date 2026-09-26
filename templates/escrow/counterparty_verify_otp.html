@@ -1,32 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Verify Identity - Trustcrow{% endblock %}
-
+{% block title %}Verify Identity — Trustcrow{% endblock %}
 {% block navbar %}
-<nav class="navbar navbar-dark navbar-custom mb-4">
-    <div class="container">
-        <span class="navbar-brand fw-bold">Trustcrow</span>
-    </div>
+<nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
+    <div class="container"><a class="navbar-brand fw-bold fs-4" href="/">Trust<span style="color:#dc2626;">crow</span></a></div>
 </nav>
 {% endblock %}
-
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-md-6 col-lg-4">
-        <div class="card card-custom shadow-sm">
-            <div class="card-body p-4 text-center">
-                <h4 class="text-navy fw-bold mb-3">Verify Your Identity</h4>
-                <p class="text-muted small mb-4">We sent a 6-digit code to <strong class="mono-text">{{ contract.counterparty_email }}</strong></p>
+    <div class="col-12 col-md-8 col-lg-5">
+        <div class="card-custom">
+            <div class="card-body p-4 p-md-5 text-center">
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle" style="width:56px;height:56px;background:rgba(220,38,38,0.08);">
+                    <i class="bi bi-person-check text-accent fs-3"></i>
+                </div>
+                <h3 class="fw-bold mb-2">Verify Your Identity</h3>
+                <p class="text-muted-custom small mb-4">We sent a 6-digit code to<br><strong class="mono-text">{{ contract.counterparty_email }}</strong></p>
 
                 {% if error_message %}
-                <div class="alert alert-danger py-2 small">{{ error_message }}</div>
+                    <div class="alert alert-danger border-0 py-2 small text-start"><i class="bi bi-exclamation-circle me-1"></i>{{ error_message }}</div>
                 {% endif %}
 
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <input type="text" name="otp" class="form-control form-control-lg text-center mono-text" placeholder="000000" maxlength="6" required>
+                        <input type="text" name="otp" class="form-control form-control-lg text-center mono-text fs-3" style="letter-spacing:0.5em;" placeholder="000000" maxlength="6" required>
                     </div>
-                    <button type="submit" class="btn btn-primary-custom w-100">Confirm & Join Escrow</button>
+                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">
+                        <i class="bi bi-check2-circle me-2"></i>Confirm & Join Escrow
+                    </button>
                 </form>
             </div>
         </div>
