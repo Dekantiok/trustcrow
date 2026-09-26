@@ -4,20 +4,75 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Trustcrow{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <meta name="description" content="Secure peer-to-peer escrow for Nigerian commerce. Hold funds until goods are received and approved.">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" integrity="sha384-tViUnnbYAV00FLIhhi3v/dWt3Jxw4gZQcNoSCxCIFNJVCx7/D55/wXsrNIRANwdD" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
     <style>
-        body { background-color: #faf8ff; font-family: 'Inter', sans-serif; color: #1a1a2e; }
-        .navbar-custom { background-color: #1a1a2e; }
-        .navbar-brand span { color: #4f8ef7; }
-        .btn-primary-custom { background-color: #4f8ef7; border-color: #4f8ef7; color: #fff; }
-        .btn-primary-custom:hover { background-color: #3a7be0; border-color: #3a7be0; color: #fff; }
+        :root {
+            --color-primary: #dc2626;
+            --color-primary-hover: #b91c1c;
+            --color-primary-soft: rgba(220, 38, 38, 0.08);
+            --color-black: #0a0a0a;
+            --color-white: #ffffff;
+            --color-bg: #fafafa;
+            --color-border: #e5e5e5;
+            --color-border-strong: #d4d4d4;
+            --color-muted: #6b7280;
+        }
+        * { -webkit-font-smoothing: antialiased; }
+        body { background-color: var(--color-bg); font-family: 'Inter', sans-serif; color: var(--color-black); }
+
+        .navbar-custom { background-color: var(--color-black); border-bottom: 1px solid #1f1f1f; }
+        .navbar-custom .navbar-brand { color: var(--color-white); letter-spacing: -0.02em; }
+
+        .btn-primary-custom { background-color: var(--color-primary); border-color: var(--color-primary); color: var(--color-white); font-weight: 500; transition: all 0.2s ease; }
+        .btn-primary-custom:hover { background-color: var(--color-primary-hover); border-color: var(--color-primary-hover); color: var(--color-white); transform: translateY(-1px); }
+        .btn-outline-dark-custom { border: 1px solid var(--color-black); color: var(--color-black); background: transparent; font-weight: 500; transition: all 0.2s ease; }
+        .btn-outline-dark-custom:hover { background-color: var(--color-black); color: var(--color-white); }
+
         .mono-text { font-family: 'DM Mono', monospace; }
-        .text-navy { color: #1a1a2e; }
-        .text-accent { color: #4f8ef7; }
-        .card-custom { border: none; border-radius: 0.75rem; }
-        .form-control:focus, .form-select:focus { border-color: #4f8ef7; box-shadow: 0 0 0 0.25rem rgba(79,142,247,0.25); }
+        .text-navy { color: var(--color-black); }
+        .text-accent { color: var(--color-primary); }
+        .text-muted-custom { color: var(--color-muted) !important; }
+
+        .card-custom { border: 1px solid var(--color-border); border-radius: 0.75rem; background: var(--color-white); transition: border-color 0.2s ease; }
+        .card-custom:hover { border-color: var(--color-border-strong); }
+
+        .form-control, .form-select { border: 1px solid var(--color-border); border-radius: 0.5rem; padding: 0.625rem 0.875rem; font-size: 0.95rem; }
+        .form-control:focus, .form-select:focus { border-color: var(--color-black); box-shadow: 0 0 0 3px rgba(10,10,10,0.08); }
+        .form-label { font-weight: 500; font-size: 0.875rem; color: var(--color-black); margin-bottom: 0.375rem; }
+
+        .badge { font-weight: 500; letter-spacing: 0.01em; }
+        .bg-primary-custom { background-color: var(--color-primary) !important; color: var(--color-white); }
+        .border-primary-custom { border-color: var(--color-primary) !important; }
+
+        .divider { height: 1px; background: var(--color-border); margin: 1.5rem 0; }
+        .icon-badge { width: 56px; height: 56px; background: var(--color-primary-soft); color: var(--color-primary); }
+
+        /* Lifecycle progress */
+        .progress { background-color: var(--color-border); border-radius: 999px; }
+        .progress-bar { background-color: var(--color-primary); }
+        .step-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--color-muted); margin-top: 0.375rem; }
+
+        /* Copy-to-clipboard */
+        .copyable { display: inline-flex; align-items: center; gap: 0.5rem; }
+        .copy-btn { border: 1px solid var(--color-border); background: var(--color-white); color: var(--color-muted); border-radius: 0.375rem; padding: 0.125rem 0.375rem; font-size: 0.75rem; line-height: 1.4; transition: all 0.15s ease; }
+        .copy-btn:hover { border-color: var(--color-black); color: var(--color-black); }
+        .copy-btn.copied { border-color: var(--color-primary); color: var(--color-primary); }
+
+        /* Poll indicator */
+        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-primary); display: inline-block; }
+        @media (prefers-reduced-motion: no-preference) {
+            .live-dot { animation: pulse 2s ease-in-out infinite; }
+            @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+        }
+
+        @media (max-width: 576px) {
+            .display-5 { font-size: 2rem; }
+            .fs-5 { font-size: 1.1rem !important; }
+        }
     </style>
 </head>
 <body>
@@ -39,7 +94,8 @@
     <main class="container py-4">
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show border-0" role="alert">
+                    <i class="bi {% if message.tags == 'error' %}bi-exclamation-circle{% else %}bi-info-circle{% endif %} me-2"></i>
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
@@ -47,6 +103,63 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <footer class="py-4 mt-5 border-top" style="background: var(--color-white);">
+        <div class="container text-center">
+            <p class="text-muted-custom small mb-0">&copy; {% now "Y" %} Trustcrow &middot; Secure P2P Escrow for Nigerian Commerce</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <script>
+        // Copy-to-clipboard for escrow codes and account numbers.
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-copy]');
+            if (!button) return;
+            var value = button.getAttribute('data-copy');
+            var done = function () {
+                var original = button.innerHTML;
+                button.innerHTML = '<i class="bi bi-check-lg"></i>';
+                button.classList.add('copied');
+                setTimeout(function () {
+                    button.innerHTML = original;
+                    button.classList.remove('copied');
+                }, 1500);
+            };
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(value).then(done);
+            } else {
+                var input = document.createElement('textarea');
+                input.value = value;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                done();
+            }
+        });
+
+        // Countdown to the end of the buyer's inspection window.
+        function tickCountdowns() {
+            document.querySelectorAll('[data-countdown]').forEach(function (el) {
+                var target = document.querySelector('[data-deadline]');
+                if (!target) return;
+                var deadline = new Date(target.getAttribute('data-deadline'));
+                if (isNaN(deadline)) return;
+                var remaining = Math.max(0, deadline - new Date());
+                var mins = Math.floor(remaining / 60000);
+                var hours = Math.floor(mins / 60);
+                el.hidden = false;
+                el.textContent = remaining === 0
+                    ? 'Expiring'
+                    : (hours >= 24
+                        ? Math.floor(hours / 24) + 'd ' + (hours % 24) + 'h left'
+                        : hours + 'h ' + (mins % 60) + 'm left');
+            });
+        }
+        document.addEventListener('DOMContentLoaded', tickCountdowns);
+        setInterval(tickCountdowns, 30000);
+        document.body.addEventListener('htmx:afterSwap', tickCountdowns);
+    </script>
 </body>
 </html>

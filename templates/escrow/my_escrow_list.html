@@ -1,26 +1,56 @@
 {% extends 'base.html' %}
-{% block title %}Escrows for {{ email }} - Trustcrow{% endblock %}
+{% block title %}My Escrows — Trustcrow{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-12 col-md-8">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="text-navy fw-bold">Escrows for {{ email }}</h3>
-            <a href="{% url 'my_escrow' %}" class="btn btn-sm btn-outline-secondary">Search Another</a>
+    <div class="col-12 col-md-10 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <i class="bi bi-folder2-open text-accent fs-4"></i>
+                    <span class="mono-text text-accent small fw-bold">MY ESCROWS</span>
+                </div>
+                <h2 class="fw-bold mb-0" style="letter-spacing:-0.02em;">Your Active Transactions</h2>
+            </div>
+            <span class="mono-text text-muted-custom small">{{ email }}</span>
         </div>
-        {% if contracts %}
-            {% for c in contracts %}
-            <div class="card card-custom shadow-sm mb-3">
-                <div class="card-body p-3 d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-1 fw-bold">{{ c.title }}</h5>
-                        <p class="small text-muted mb-0 mono-text">Code: {{ c.code }} &middot; \u20a6{{ c.amount|floatformat:2 }}</p>
+
+        {% if escrows %}
+            <div class="row g-3">
+                {% for c in escrows %}
+                <div class="col-12">
+                    <a href="{% url 'contract_detail' c.code %}" class="text-decoration-none">
+                        <div class="card-custom h-100 p-3 p-md-4" style="transition:all 0.2s ease;">
+                            <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                                <h5 class="fw-bold mb-0 text-black" style="color:var(--color-black);">{{ c.title }}</h5>
+                                <span class="badge {{ c.badge_class }} px-2 py-1 small">{{ c.status_label }}</span>
+                            </div>
+                            <p class="mono-text text-muted-custom small mb-2"><i class="bi bi-hash me-1"></i>{{ c.code }}</p>
+                            <p class="text-muted-custom small mb-3" style="color:var(--color-muted);">{{ c.description|truncatechars:80 }}</p>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <span class="small text-muted-custom">Your Role:</span>
+                                    <span class="badge ms-1" style="background:var(--color-bg);color:var(--color-black);border:1px solid var(--color-border);">{{ c.user_role|title }}</span>
+                                </div>
+                                <div class="fw-bold mono-text">{{ c.formatted_amount }}</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card-custom">
+                <div class="card-body p-5 text-center">
+                    <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle" style="width:64px;height:64px;background:var(--color-bg);">
+                        <i class="bi bi-inbox fs-2 text-muted-custom"></i>
                     </div>
-                    <a href="{% url 'contract_detail' c.code %}" class="btn btn-sm btn-primary-custom">View</a>
+                    <h5 class="fw-bold mb-2">No Active Escrows</h5>
+                    <p class="text-muted-custom small mb-4">You don't have any active escrow transactions with this email.</p>
+                    <a href="{% url 'create_contract' %}" class="btn btn-primary-custom">
+                        <i class="bi bi-plus-circle me-2"></i>Create New Escrow
+                    </a>
                 </div>
             </div>
-            {% endfor %}
-        {% else %}
-            <div class="alert alert-info">No escrow transactions found for this email.</div>
         {% endif %}
     </div>
 </div>
