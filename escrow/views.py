@@ -22,7 +22,7 @@ STATUS_LABELS = {
     'awaiting_dispatch': 'Awaiting Dispatch',
     'in_transit': 'In Transit',
     'in_inspection': 'In Inspection',
-    'pending_payout': 'Pending Payout',
+    'pending_payout': 'Funds Released',
     'completed': 'Completed',
     'disputed': 'Disputed',
     'cancelled': 'Cancelled',
@@ -151,6 +151,11 @@ def contract_detail(request, code):
     is_seller = (seller_email in verified_emails)
     vault = getattr(contract, 'settlement_vault', None)
 
+    if contract.fee_payer == 'seller':
+        seller_receives = contract.amount - contract.service_fee
+    else:
+        seller_receives = contract.amount
+
     context = {
         'contract': contract,
         'status_label': STATUS_LABELS.get(contract.status, contract.status),
@@ -161,9 +166,13 @@ def contract_detail(request, code):
         'show_buyer_release_funds': (contract.status == 'in_inspection' and is_buyer),
         'show_buyer_raise_dispute': (contract.status == 'in_inspection' and is_buyer),
         'show_seller_vault_form': (contract.status in ['awaiting_dispatch', 'in_transit', 'in_inspection'] and is_seller and not vault),
-        'show_seller_waiting': (contract.status in ['in_transit', 'in_inspection', 'pending_payout'] and is_seller and vault),
+        'show_seller_waiting': (contract.status in ['in_transit', 'in_inspection'] and is_seller and vault),
+        'show_seller_funds_released': (contract.status == 'pending_payout' and is_seller),
+        'show_seller_completed': (contract.status == 'completed' and is_seller),
+        'show_buyer_completed': (contract.status == 'completed' and is_buyer),
         'formatted_amount': f"\u20a6{contract.amount:,.2f}",
         'formatted_fee': f"\u20a6{contract.service_fee:,.2f}",
+        'formatted_seller_receives': f"\u20a6{seller_receives:,.2f}",
         'is_buyer': is_buyer,
         'is_seller': is_seller,
         'vault': vault,

@@ -125,8 +125,42 @@
         <div class="card card-custom shadow-sm">
             <div class="card-body p-4 text-center">
                 <h5 class="text-navy fw-bold mb-3">Waiting for Buyer</h5>
-                <p class="text-muted small mb-2">Your bank details are saved. Funds will be released once the buyer confirms or the inspection period expires.</p>
+                <p class="text-muted small mb-2">Your bank details are saved. Funds will be released once the buyer confirms receipt.</p>
                 <p class="text-muted small mb-0">Bank: <strong>{{ vault.bank_name }}</strong> &middot; <span class="mono-text">{{ vault.account_number }}</span></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_seller_funds_released %}
+        <div class="card card-custom shadow-sm border-success">
+            <div class="card-body p-4 text-center">
+                <div class="fs-3 mb-2">&#10003;</div>
+                <h5 class="text-navy fw-bold mb-3">Funds Released</h5>
+                <p class="text-muted small mb-2">The buyer has released the funds. The transfer to your bank account is being processed.</p>
+                <p class="fw-bold mono-text text-success fs-5 mb-2">{{ formatted_seller_receives }}</p>
+                <p class="text-muted small mb-0">Bank: <strong>{{ vault.bank_name }}</strong> &middot; <span class="mono-text">{{ vault.account_number }}</span></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_seller_completed %}
+        <div class="card card-custom shadow-sm border-success">
+            <div class="card-body p-4 text-center">
+                <div class="fs-3 mb-2">&#10003;</div>
+                <h5 class="text-navy fw-bold mb-3">Payment Complete</h5>
+                <p class="text-muted small mb-2">Funds have been sent to your bank account.</p>
+                <p class="fw-bold mono-text text-success fs-5 mb-2">{{ formatted_seller_receives }}</p>
+                <p class="text-muted small mb-0">Bank: <strong>{{ vault.bank_name }}</strong> &middot; <span class="mono-text">{{ vault.account_number }}</span></p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_buyer_completed %}
+        <div class="card card-custom shadow-sm border-success">
+            <div class="card-body p-4 text-center">
+                <div class="fs-3 mb-2">&#10003;</div>
+                <h5 class="text-navy fw-bold mb-3">Escrow Complete</h5>
+                <p class="text-muted small mb-0">Funds have been released to the seller. This transaction is now closed.</p>
             </div>
         </div>
         {% endif %}
