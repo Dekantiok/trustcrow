@@ -176,6 +176,40 @@ def _transfer_succeeded(result):
     return result.get('message') == 'Success'
 
 
+def confirm_funding_payment(contract, amount_kobo):
+    """Mark a funded contract as awaiting_dispatch.
+
+    Shared by the webhook and the callback fallback. The move is a single
+    conditional UPDATE, so concurrent confirmations can only advance the
+    contract once. Returns True when this call moved it.
+    """
+    if (
+        EscrowContract.objects.filter(pk=contract.pk, status='awaiting_funding').count()
+        == 0
+    ):
+        return False
+    try:
+        paid_kobo = int(amount_kobo)
+    except (TypeError, ValueError):
+        logger.error(
+            "Unusable paid amount %r for contract %s", amount_kobo, contract.code
+        )
+        return False
+    if paid_kobo != contract.total_charge_kobo:
+        logger.error(
+            "Amount mismatch on %s: got %s expected %s",
+            contract.code, paid_kobo, contract.total_charge_kobo,
+        )
+        return False
+    moved = EscrowContract.objects.filter(
+        pk=contract.pk, status='awaiting_funding'
+    ).update(status='awaiting_dispatch')
+    if moved:
+        logger.info("Payment confirmed for contract %s", contract.code)
+        contract.refresh_from_db()
+    return bool(moved)
+
+
 def settle_pending_payout(contract):
     """
     Transfer funds for a contract that is already in pending_payout.

@@ -153,6 +153,27 @@ class PaystackGateway(PaymentGatewayBase):
             logger.exception("Paystack transfer failed")
             return {"status": False, "error": str(e)}
 
+    def verify_transaction(self, gateway_reference):
+        """Fetch a transaction's live status from Paystack.
+
+        Returns the parsed response body, or {"status": False, ...} when the
+        lookup itself failed. Callers must still check data.status ==
+        "success", the reference echo, and the amount before treating funds
+        as received.
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/transaction/verify/{gateway_reference}",
+                headers=self._headers(),
+                timeout=_timeout(),
+            )
+            return response.json()
+        except Exception as e:
+            logger.exception(
+                "Paystack transaction verify failed for %s", gateway_reference
+            )
+            return {"status": False, "error": str(e)}
+
     def refund_payment(self, gateway_reference, amount_kobo=None):
         """Attempt a Paystack refund for a captured transaction reference."""
         payload = {"transaction": gateway_reference}

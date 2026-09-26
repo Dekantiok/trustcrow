@@ -13,5 +13,8 @@ class PaymentGatewayBase(ABC):
     def execute_seller_payout(self, settlement_vault_record, total_disbursement):
         pass
 
+    def verify_transaction(self, gateway_reference):
+        raise NotImplementedError
+
     def refund_payment(self, gateway_reference, amount_kobo=None):
         raise NotImplementedError

@@ -15,6 +15,7 @@ from .gateways import get_payment_gateway
 from .models import EscrowContract, TransitionError
 from .services import (
     calculate_service_fee,
+    confirm_funding_payment,
     consume_otp,
     contracts_for_email,
     get_unique_contract_code,
@@ -301,15 +302,44 @@ def payment_callback(request, code):
     """
     Browser return leg from Paystack Checkout.
 
-    This is a redirect target, not a payment confirmation. Funds are only ever
-    considered received once the signed webhook arrives, so no state changes
-    here regardless of the query string the gateway appends.
+    Webhooks are the primary confirmation, but they never arrive when the
+    webhook URL isn't configured or reachable on the gateway dashboard —
+    which used to leave escrows stuck on "confirming payment" forever. As a
+    fallback, verify OUR stored reference directly with Paystack before
+    showing that message. The browser's query string is never trusted and
+    the move is a conditional UPDATE, so replays can't double-advance.
     """
     contract = get_object_or_404(EscrowContract, code=code)
-    messages.info(
-        request,
-        "Thanks. We're confirming your payment. This usually takes a few seconds.",
-    )
+    if contract.status == 'awaiting_funding' and contract.gateway_reference:
+        try:
+            result = get_payment_gateway().verify_transaction(
+                contract.gateway_reference
+            )
+        except Exception:
+            logger.exception(
+                "Payment verification raised for contract %s", contract.code
+            )
+            result = None
+        data = (
+            result.get('data', {}) if isinstance(result, dict) else {}
+        )
+        if (
+            isinstance(result, dict) and result.get('status')
+            and isinstance(data, dict) and data.get('status') == 'success'
+            and data.get('reference') == contract.gateway_reference
+            and confirm_funding_payment(contract, data.get('amount'))
+        ):
+            messages.success(
+                request,
+                "Payment confirmed. The seller has been notified to dispatch.",
+            )
+            return redirect('contract_detail', code=contract.code)
+        contract.refresh_from_db()
+    if contract.status == 'awaiting_funding':
+        messages.info(
+            request,
+            "Thanks. We're confirming your payment. This usually takes a few seconds.",
+        )
     return redirect('contract_detail', code=contract.code)
 
 

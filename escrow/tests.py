@@ -435,8 +435,14 @@ class WebhookTest(TestCase):
         self.assertEqual(self.contract.status, 'awaiting_dispatch')
 
     @patch('escrow.views.get_payment_gateway')
-    def test_callback_never_advances_state(self, mock_gateway):
-        """The browser return leg must not be able to confirm a payment."""
+    def test_callback_without_gateway_confirmation_leaves_state(self, mock_gateway):
+        """The browser return leg alone confirms nothing; only a Paystack
+        verification of our stored reference may advance the contract."""
+        mock_gateway.return_value.verify_transaction.return_value = {
+            'status': True,
+            'data': {'status': 'failed', 'reference': self.contract.gateway_reference,
+                     'amount': 1150000},
+        }
         response = self.client.get(
             reverse('payment_callback', kwargs={'code': 'WH1'})
         )
@@ -492,6 +498,78 @@ class WebhookTest(TestCase):
 
     def test_get_is_not_allowed(self):
         self.assertEqual(self.client.get(self.url).status_code, 400)
+
+
+class CallbackVerifyTest(TestCase):
+    """The callback falls back to verifying our stored reference with
+    Paystack, so a missing/unreachable webhook can't strand a paid escrow."""
+
+    def setUp(self):
+        self.client = Client()
+        self.contract = make_contract(code='CB1', status='awaiting_funding',
+                                      amount=Decimal('10000.00'))
+        self.url = reverse('payment_callback', kwargs={'code': 'CB1'})
+
+    def success_payload(self, amount=1150000):
+        return {
+            'status': True,
+            'data': {'status': 'success', 'amount': amount,
+                     'reference': self.contract.gateway_reference},
+        }
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_verified_payment_advances(self, mock_gateway):
+        mock_gateway.return_value.verify_transaction.return_value = self.success_payload()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_dispatch')
+        mock_gateway.return_value.verify_transaction.assert_called_once_with(
+            self.contract.gateway_reference
+        )
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_amount_mismatch_does_not_advance(self, mock_gateway):
+        mock_gateway.return_value.verify_transaction.return_value = self.success_payload(
+            amount=1
+        )
+        self.client.get(self.url)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_funding')
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_wrong_reference_does_not_advance(self, mock_gateway):
+        payload = self.success_payload()
+        payload['data']['reference'] = 'someone-elses-reference'
+        mock_gateway.return_value.verify_transaction.return_value = payload
+        self.client.get(self.url)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_funding')
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_failed_transaction_does_not_advance(self, mock_gateway):
+        payload = self.success_payload()
+        payload['data']['status'] = 'failed'
+        mock_gateway.return_value.verify_transaction.return_value = payload
+        self.client.get(self.url)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_funding')
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_lookup_error_does_not_advance(self, mock_gateway):
+        mock_gateway.return_value.verify_transaction.side_effect = TimeoutError('boom')
+        self.client.get(self.url)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_funding')
+
+    @patch('escrow.views.get_payment_gateway')
+    def test_revisit_after_advance_verifies_nothing(self, mock_gateway):
+        mock_gateway.return_value.verify_transaction.return_value = self.success_payload()
+        self.client.get(self.url)
+        self.client.get(self.url)
+        self.contract.refresh_from_db()
+        self.assertEqual(self.contract.status, 'awaiting_dispatch')
+        mock_gateway.return_value.verify_transaction.assert_called_once()
 
 
 class WebhookSignatureTest(TestCase):

@@ -2,8 +2,9 @@ from django.contrib import admin, messages
 from django.db.models import Q
 from django.utils import timezone
 
+from .gateways import get_payment_gateway
 from .models import AuthOTP, EscrowContract, SettlementVault
-from .services import settle_pending_payout
+from .services import confirm_funding_payment, settle_pending_payout
 
 
 @admin.register(EscrowContract)
@@ -20,11 +21,54 @@ class EscrowContractAdmin(admin.ModelAdmin):
     )
     date_hierarchy = 'created_at'
     actions = (
+        'verify_pending_payment',
         'resolve_dispute_to_payout',
         'resolve_dispute_cancelled',
         'cancel_contract',
         'extend_inspection_window',
     )
+
+    @admin.action(description="Verify pending payment with Paystack")
+    def verify_pending_payment(self, request, queryset):
+        """Recover escrows stuck in awaiting_funding after a real payment.
+
+        Asks Paystack for each contract's stored reference and advances the
+        ones that are actually paid. Safe to re-run: confirmation is a
+        conditional UPDATE that only fires once.
+        """
+        verified = 0
+        for contract in queryset:
+            if contract.status != 'awaiting_funding' or not contract.gateway_reference:
+                self.message_user(
+                    request,
+                    f"{contract.code} is not awaiting funding; skipped.",
+                    level=messages.WARNING,
+                )
+                continue
+            try:
+                result = get_payment_gateway().verify_transaction(
+                    contract.gateway_reference
+                )
+            except Exception:
+                result = None
+            data = result.get('data', {}) if isinstance(result, dict) else {}
+            if (
+                isinstance(result, dict) and result.get('status')
+                and isinstance(data, dict) and data.get('status') == 'success'
+                and data.get('reference') == contract.gateway_reference
+                and confirm_funding_payment(contract, data.get('amount'))
+            ):
+                verified += 1
+            else:
+                self.message_user(
+                    request,
+                    f"{contract.code}: no successful payment found "
+                    f"(check Paystack reference {contract.gateway_reference}).",
+                    level=messages.WARNING,
+                )
+        self.message_user(
+            request, f"Verified {verified} payment(s).", level=messages.INFO
+        )
 
     def _cancel(self, request, queryset, verb):
         changed = 0
