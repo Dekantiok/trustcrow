@@ -5,6 +5,9 @@ from escrow import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.home_view, name='home'),
+    path('my-escrow/', views.my_escrow, name='my_escrow'),
+    path('my-escrow/verify/', views.my_escrow_verify_otp, name='my_escrow_verify_otp'),
+    path('my-escrow/list/', views.my_escrow_list, name='my_escrow_list'),
     path('join/', views.join_escrow_page, name='join_escrow_page'),
     path('create/', views.create_contract, name='create_contract'),
     path('verify/<str:code>/', views.verify_otp_view, name='verify_otp'),

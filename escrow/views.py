@@ -1,5 +1,6 @@
 import datetime
 import json
+from django.db import models
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
@@ -329,3 +330,98 @@ def seller_add_vault(request, code):
     else:
         form = SettlementVaultForm()
     return render(request, 'escrow/add_vault.html', {'form': form, 'contract': contract})
+
+def my_escrow(request):
+    email = request.session.get('my_escrow_pending_email')
+    if email and request.session.get('my_escrow_verified') == email:
+        return redirect('my_escrow_list')
+    
+    error_message = None
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip().lower()
+        if not email:
+            error_message = "Please enter a valid email address."
+        else:
+            has_escrows = EscrowContract.objects.filter(
+                models.Q(creator_email=email) | models.Q(counterparty_email=email)
+            ).exclude(status__in=['completed', 'cancelled']).exists()
+            
+            if not has_escrows:
+                error_message = "No active escrows found for this email."
+            else:
+                otp_code = generate_otp()
+                expires_at = now() + datetime.timedelta(minutes=15)
+                AuthOTP.objects.create(
+                    email=email,
+                    otp_code=otp_code,
+                    intent='reauth',
+                    expires_at=expires_at
+                )
+                send_otp_via_termii(email, otp_code)
+                request.session['my_escrow_pending_email'] = email
+                return redirect('my_escrow_verify_otp')
+    
+    return render(request, 'escrow/my_escrow_email.html', {'error_message': error_message})
+
+def my_escrow_verify_otp(request):
+    email = request.session.get('my_escrow_pending_email')
+    if not email:
+        return redirect('my_escrow')
+    
+    error_message = None
+    if request.method == 'POST':
+        submitted_otp = request.POST.get('otp')
+        try:
+            otp_record = AuthOTP.objects.get(
+                email=email,
+                otp_code=submitted_otp,
+                intent='reauth',
+                is_used=False
+            )
+            if otp_record.expires_at > now() and otp_record.attempts_left > 0:
+                otp_record.is_used = True
+                otp_record.save()
+                request.session['my_escrow_verified'] = email
+                del request.session['my_escrow_pending_email']
+                add_verified_email(request, email)
+                return redirect('my_escrow_list')
+            else:
+                otp_record.attempts_left -= 1
+                otp_record.save()
+                error_message = "Invalid or expired OTP."
+        except AuthOTP.DoesNotExist:
+            error_message = "OTP not found. Please check your email."
+    
+    return render(request, 'escrow/my_escrow_otp.html', {'email': email, 'error_message': error_message})
+
+def my_escrow_list(request):
+    email = request.session.get('my_escrow_verified')
+    if not email:
+        return redirect('my_escrow')
+    
+    contracts = EscrowContract.objects.filter(
+        models.Q(creator_email=email) | models.Q(counterparty_email=email)
+    ).exclude(status__in=['completed', 'cancelled']).order_by('-id')
+    
+    escrow_data = []
+    for contract in contracts:
+        if contract.creator_email == email:
+            user_role = contract.creator_role
+        else:
+            user_role = 'seller' if contract.creator_role == 'buyer' else 'buyer'
+        
+        escrow_data.append({
+            'code': contract.code,
+            'title': contract.title,
+            'description': contract.description,
+            'status': contract.status,
+            'status_label': STATUS_LABELS.get(contract.status, contract.status),
+            'badge_class': STATUS_BADGES.get(contract.status, 'bg-secondary'),
+            'user_role': user_role,
+            'formatted_amount': f"\u20a6{contract.amount:,.2f}",
+        })
+    
+    return render(request, 'escrow/my_escrow_list.html', {
+        'escrows': escrow_data,
+        'email': email,
+    })

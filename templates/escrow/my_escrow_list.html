@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}My Escrows - Trustcrow{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="text-navy fw-bold mb-0">My Escrows</h3>
+            <span class="text-muted small mono-text">{{ email }}</span>
+        </div>
+
+        {% if escrows %}
+            <div class="row g-3">
+                {% for contract in escrows %}
+                <div class="col-12">
+                    <a href="{% url 'contract_detail' contract.code %}" class="text-decoration-none">
+                        <div class="card card-custom shadow-sm h-100 hover-card">
+                            <div class="card-body p-4">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="text-navy fw-bold mb-0">{{ contract.title }}</h5>
+                                    <span class="badge {{ contract.badge_class }} px-2 py-1 small">{{ contract.status_label }}</span>
+                                </div>
+                                <p class="text-muted small mono-text mb-2">Code: {{ contract.code }}</p>
+                                <p class="text-muted small mb-3">{{ contract.description|truncatechars:80 }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="small text-muted">Your Role:</span>
+                                        <span class="badge bg-light text-dark border ms-1">{{ contract.user_role|title }}</span>
+                                    </div>
+                                    <div class="fw-bold mono-text text-navy">{{ contract.formatted_amount }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card card-custom shadow-sm">
+                <div class="card-body p-5 text-center">
+                    <div class="fs-1 text-muted mb-3">📭</div>
+                    <h5 class="text-navy fw-bold mb-2">No Active Escrows</h5>
+                    <p class="text-muted small mb-4">You don't have any active escrow transactions with this email.</p>
+                    <a href="{% url 'create_contract' %}" class="btn btn-primary-custom">Create New Escrow</a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .hover-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .hover-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1) !important; }
+</style>
+{% endblock %}
