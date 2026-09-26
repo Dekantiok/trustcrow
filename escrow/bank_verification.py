@@ -1,7 +1,14 @@
+import logging
+
 import requests
 from django.conf import settings
 
-MOCK_BANKS = {
+logger = logging.getLogger(__name__)
+
+DEFAULT_TIMEOUT = 15
+
+# Fallback list for local development and for gateways that reject unknown codes.
+FALLBACK_BANKS = {
     '044': 'Access Bank',
     '023': 'Citibank Nigeria',
     '063': 'Diamond Bank',
@@ -23,24 +30,67 @@ MOCK_BANKS = {
     '057': 'Zenith Bank',
 }
 
+MOCK_BANKS = FALLBACK_BANKS
+
+_bank_name_cache = {}
+
+
+def _timeout():
+    return getattr(settings, 'GATEWAY_HTTP_TIMEOUT', DEFAULT_TIMEOUT)
+
+
+def _secret():
+    return getattr(settings, 'PAYSTACK_SECRET_KEY', 'sk_test_dummy')
+
+
 def verify_bank_account(account_number, bank_code):
+    account_number = (account_number or '').strip()
+    if not account_number.isdigit() or len(account_number) != 10:
+        return {'status': False, 'error': 'Account number must be exactly 10 digits.'}
+
     if settings.DEBUG:
-        if account_number == '0123456789':
-            return {'status': True, 'account_name': 'TEST ACCOUNT NAME'}
-        return {'status': True, 'account_name': f'TEST USER {account_number[-4:]}'}
-    
-    paystack_secret = getattr(settings, 'PAYSTACK_SECRET_KEY', 'sk_test_dummy')
+        return {
+            'status': True,
+            'account_name': 'TEST ACCOUNT NAME' if account_number == '0123456789'
+            else f'TEST USER {account_number[-4:]}',
+        }
+
     url = f"https://api.paystack.co/bank/resolve?account_number={account_number}&bank_code={bank_code}"
-    headers = {"Authorization": f"Bearer {paystack_secret}"}
-    
+    headers = {"Authorization": f"Bearer {_secret()}"}
+
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=_timeout())
         data = response.json()
         if data.get('status'):
             return {'status': True, 'account_name': data['data']['account_name']}
-        return {'status': False, 'error': 'Account resolution failed'}
+        return {'status': False, 'error': data.get('message') or 'Account resolution failed'}
     except Exception as e:
+        logger.exception("Bank account resolution failed")
         return {'status': False, 'error': str(e)}
 
+
+def list_banks():
+    """Bank code -> name, fetched from the gateway and cached for the process."""
+    if _bank_name_cache:
+        return _bank_name_cache
+
+    banks = dict(FALLBACK_BANKS)
+    if not settings.DEBUG:
+        try:
+            response = requests.get(
+                "https://api.paystack.co/bank",
+                headers={"Authorization": f"Bearer {_secret()}"},
+                timeout=_timeout(),
+            )
+            data = response.json()
+            if data.get('status'):
+                banks = {b['code']: b['name'] for b in data.get('data', [])}
+        except Exception:
+            logger.exception("Bank list fetch failed; using fallback list")
+
+    _bank_name_cache.update(banks)
+    return _bank_name_cache
+
+
 def get_bank_name(bank_code):
-    return MOCK_BANKS.get(bank_code, 'Unknown Bank')
+    return list_banks().get(bank_code, 'Unknown Bank')

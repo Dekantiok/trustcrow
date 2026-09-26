@@ -1,10 +1,5 @@
 {% extends 'base.html' %}
 {% block title %}Add Bank Details — Trustcrow{% endblock %}
-{% block navbar %}
-<nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
-    <div class="container"><a class="navbar-brand fw-bold fs-4" href="/">Trust<span style="color:#dc2626;">crow</span></a></div>
-</nav>
-{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-md-10 col-lg-7">
@@ -16,7 +11,7 @@
                 </div>
                 <h3 class="fw-bold mb-2" style="letter-spacing:-0.02em;">Add Payout Details</h3>
                 <p class="text-muted-custom small mb-2">Escrow: <span class="mono-text">{{ contract.code }}</span></p>
-                <p class="text-muted-custom small mb-4">Your bank details are encrypted and only used for this payout.</p>
+                <p class="text-muted-custom small mb-4">We confirm the account name with your bank before saving it, and only the seller can see these details afterwards.</p>
                 <div class="divider"></div>
                 <form method="post">
                     {% csrf_token %}
@@ -24,9 +19,13 @@
                         <div class="mb-3">
                             <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
                             {{ field }}
+                            {% if field.help_text %}<small class="text-muted-custom d-block mt-1">{{ field.help_text }}</small>{% endif %}
                             {% for error in field.errors %}<div class="text-danger small mt-1"><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
                         </div>
                     {% endfor %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger border-0 py-2 small">{{ form.non_field_errors }}</div>
+                    {% endif %}
                     <button type="submit" class="btn btn-primary-custom btn-lg w-100 mt-3">
                         <i class="bi bi-shield-check me-2"></i>Save Bank Details
                     </button>

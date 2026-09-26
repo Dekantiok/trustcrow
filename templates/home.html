@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Trustcrow - Secure P2P Escrow{% endblock %}
+{% block title %}Trustcrow &middot; Secure P2P Escrow{% endblock %}
 {% block content %}
 <div class="text-center py-5">
-    <h1 class="display-5 fw-bold text-navy">Secure P2P Transactions</h1>
+    <span class="mono-text text-accent small fw-bold">TRUSTCROW</span>
+    <h1 class="display-5 fw-bold text-navy mt-2">Secure P2P Transactions</h1>
     <p class="lead text-muted mt-3">Bridge the trust gap in informal digital commerce. No accounts, no wallets, just secure escrow.</p>
 </div>
 
@@ -10,7 +11,7 @@
     <div class="col-12 col-md-6 col-lg-5">
         <div class="card card-custom shadow-sm h-100">
             <div class="card-body p-4">
-                <div class="text-accent fs-2 mb-2">＋</div>
+                <div class="text-accent fs-2 mb-2"><i class="bi bi-plus-lg"></i></div>
                 <h4 class="text-navy fw-bold">Create New Escrow</h4>
                 <p class="text-muted small">Start a new transaction. You will be the creator (buyer or seller) and invite your counterparty.</p>
                 <a href="{% url 'create_contract' %}" class="btn btn-primary-custom w-100 mt-2">Start New Contract</a>
@@ -21,10 +22,10 @@
     <div class="col-12 col-md-6 col-lg-5">
         <div class="card card-custom shadow-sm h-100">
             <div class="card-body p-4">
-                <div class="text-accent fs-2 mb-2">🔗</div>
+                <div class="text-accent fs-2 mb-2"><i class="bi bi-link-45deg"></i></div>
                 <h4 class="text-navy fw-bold">Join Existing Escrow</h4>
-                <p class="text-muted small">Already have an escrow code from your counterparty? Click below to verify your identity and accept the terms.</p>
-                <a href="{% url 'join_escrow_page' %}" class="btn btn-outline-primary w-100 mt-2" style="border-color:#4f8ef7;color:#4f8ef7;">Join Escrow</a>
+                <p class="text-muted small">Already have an escrow code from your counterparty? Verify your email to accept the terms.</p>
+                <a href="{% url 'join_escrow_page' %}" class="btn btn-outline-dark-custom w-100 mt-2">Join Escrow</a>
             </div>
         </div>
     </div>

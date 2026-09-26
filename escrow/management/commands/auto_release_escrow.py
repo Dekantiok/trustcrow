@@ -1,18 +1,27 @@
 from django.core.management.base import BaseCommand
-from django.utils.timezone import now
-from escrow.models import EscrowContract
-from escrow.views import execute_auto_payout
+
+from escrow.services import auto_release_expired_inspections
+
 
 class Command(BaseCommand):
-    def handle(self, *args, **options):
-        expired_contracts = EscrowContract.objects.filter(
-            status='in_transit',
-            inspection_ends__lt=now()
+    help = "Release escrows whose inspection window has elapsed without buyer action."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--dry-run',
+            action='store_true',
+            help="List the escrows that would be released without paying anyone.",
         )
-        count = 0
-        for contract in expired_contracts:
-            contract.status = 'pending_payout'
-            contract.save()
-            execute_auto_payout(contract)
-            count += 1
-        self.stdout.write(self.style.SUCCESS(f'Processed {count} expired contracts.'))
+
+    def handle(self, *args, **options):
+        if options['dry_run']:
+            pending = auto_release_expired_inspections(dry_run=True)
+            for contract in pending:
+                self.stdout.write(f"Would release {contract.code} ({contract.title})")
+            self.stdout.write(self.style.WARNING(f'{len(pending)} escrow(s) eligible.'))
+            return
+
+        released, skipped = auto_release_expired_inspections()
+        self.stdout.write(
+            self.style.SUCCESS(f'Released {released} expired escrow(s), skipped {skipped}.')
+        )
