@@ -323,3 +323,13 @@ def seller_add_vault(request, code):
     else:
         form = SettlementVaultForm()
     return render(request, 'escrow/add_vault.html', {'form': form, 'contract': contract})
+from django.db.models import Q
+
+def my_escrow(request):
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip().lower()
+        contracts = EscrowContract.objects.filter(
+            Q(creator_email__iexact=email) | Q(counterparty_email__iexact=email)
+        ).order_by('-id')
+        return render(request, 'escrow/my_escrow_list.html', {'contracts': contracts, 'email': email})
+    return render(request, 'escrow/my_escrow.html')

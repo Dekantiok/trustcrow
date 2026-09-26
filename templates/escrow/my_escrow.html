@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}My Escrow - Trustcrow{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-md-6">
+        <div class="card card-custom shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="text-navy fw-bold mb-3">My Escrows</h4>
+                <p class="text-muted small mb-4">Enter your email address to view your active and past escrow transactions.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" name="email" id="email" class="form-control" placeholder="your@email.com" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary-custom w-100">Find My Escrows</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
