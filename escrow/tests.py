@@ -195,6 +195,44 @@ class OtpTest(TestCase):
         self.assertFalse(consume_otp(BUYER, record.otp_code, 'join').ok)
 
 
+@override_settings(
+    DEBUG=False, TERMII_API_KEY='live_test_key',
+    TERMII_EMAIL_CONFIG_ID='live_test_config',
+)
+class TermiiPayloadTest(TestCase):
+    """The emailed code must be the code stored in AuthOTP.
+
+    Regression test: the payload once omitted `code`, so production emails
+    never matched the stored code while DEBUG/mocked sends hid the bug.
+    """
+
+    def _post(self, response_json):
+        with patch('escrow.notifications.requests.post') as mock_post:
+            mock_post.return_value.json.return_value = response_json
+            from .notifications import send_otp_via_termii
+            result = send_otp_via_termii('buyer@test.com', '482913')
+        return mock_post, result
+
+    def test_sends_the_stored_code(self):
+        mock_post, result = self._post({'code': 'ok'})
+        self.assertTrue(result)
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs['json']['code'], '482913')
+        self.assertEqual(kwargs['json']['email_address'], 'buyer@test.com')
+        self.assertEqual(kwargs['json']['email_configuration_id'], 'live_test_config')
+
+    def test_rejection_returns_false(self):
+        _, result = self._post({'code': 'error', 'message': 'Insufficient balance'})
+        self.assertFalse(result)
+
+    def test_unset_credentials_short_circuit(self):
+        with override_settings(TERMII_API_KEY='dummy_key'):
+            with patch('escrow.notifications.requests.post') as mock_post:
+                from .notifications import send_otp_via_termii
+                self.assertFalse(send_otp_via_termii('buyer@test.com', '482913'))
+                mock_post.assert_not_called()
+
+
 class ContractCreationTest(TestCase):
     def setUp(self):
         self.client = Client()

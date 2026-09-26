@@ -17,26 +17,31 @@ def send_otp_via_termii(email, otp_code):
 
     api_key = getattr(settings, 'TERMII_API_KEY', 'dummy_key')
     email_config_id = getattr(settings, 'TERMII_EMAIL_CONFIG_ID', 'default_config')
-    
+
     url = "https://api.ng.termii.com/api/email/otp/send"
-    
+
+    # Email Token API: `code` is REQUIRED — it is the exact OTP the user
+    # receives. The pin_* / message_text fields belong to the SMS Token API
+    # and are ignored here; omitting `code` was why production emails never
+    # matched the code stored in AuthOTP.
     payload = {
         "api_key": api_key,
         "email_address": email,
-        "pin_attempts": 3,
-        "pin_time_to_live": 15,
-        "pin_length": 6,
-        "pin_type": "NUMERIC",
-        "channel": "email",
-        "pin_placeholder": "<pin>",
-        "message_text": "Your Trustcrow verification code is <pin>. It is valid for 15 minutes.",
-        "email_configuration_id": email_config_id
+        "code": otp_code,
+        "email_configuration_id": email_config_id,
     }
     
     headers = {
         "Content-Type": "application/json"
     }
     
+    if api_key in ('', 'dummy_key') or email_config_id in ('', 'default_config'):
+        logger.error(
+            "Termii OTP not attempted for %s: TERMII_API_KEY/TERMII_EMAIL_CONFIG_ID "
+            "look unset in this environment.", email,
+        )
+        return False
+
     try:
         response = requests.post(
             url,
@@ -46,7 +51,10 @@ def send_otp_via_termii(email, otp_code):
         )
         response_data = response.json()
         if response_data.get("code") != "ok":
-            logger.error("Termii rejected OTP for %s: %s", email, response_data.get("message"))
+            logger.error(
+                "Termii rejected OTP for %s: %s (response: %r)",
+                email, response_data.get("message"), response_data,
+            )
         return response_data.get("code") == "ok"
     except Exception:
         logger.exception("Termii OTP delivery failed for %s", email)
