@@ -2,10 +2,13 @@ import logging
 
 import requests
 from django.conf import settings
+from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT = 15
+BANK_LIST_CACHE_KEY = 'trustcrow:bank_list'
+BANK_LIST_CACHE_TIMEOUT = 6 * 60 * 60
 
 # Fallback list for local development and for gateways that reject unknown codes.
 FALLBACK_BANKS = {
@@ -70,7 +73,18 @@ def verify_bank_account(account_number, bank_code):
 
 
 def list_banks():
-    """Bank code -> name, fetched from the gateway and cached for the process."""
+    """Bank code -> name, fetched from the gateway and cached.
+
+    Uses Django's cache backend (shared across workers) with a process-dict
+    fallback, so multi-worker deployments cannot serve permanently stale
+    lists and a cold cache still degrades to FALLBACK_BANKS.
+    """
+    try:
+        cached = cache.get(BANK_LIST_CACHE_KEY)
+    except Exception:
+        cached = None
+    if cached:
+        return cached
     if _bank_name_cache:
         return _bank_name_cache
 
@@ -78,7 +92,7 @@ def list_banks():
     if not settings.DEBUG:
         try:
             response = requests.get(
-                "https://api.paystack.co/bank",
+                "https://api.paystack.co/bank?currency=NGN",
                 headers={"Authorization": f"Bearer {_secret()}"},
                 timeout=_timeout(),
             )
@@ -88,8 +102,13 @@ def list_banks():
         except Exception:
             logger.exception("Bank list fetch failed; using fallback list")
 
+    _bank_name_cache.clear()
     _bank_name_cache.update(banks)
-    return _bank_name_cache
+    try:
+        cache.set(BANK_LIST_CACHE_KEY, dict(banks), BANK_LIST_CACHE_TIMEOUT)
+    except Exception:
+        pass
+    return dict(banks)
 
 
 def get_bank_name(bank_code):

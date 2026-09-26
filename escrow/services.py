@@ -36,6 +36,15 @@ def calculate_service_fee(amount):
         return Decimal('10000')
 
 
+def chargeable_total(contract):
+    """Single source of truth for the checkout total; delegates to the model."""
+    return contract.total_charge
+
+
+def chargeable_kobo(contract):
+    return contract.total_charge_kobo
+
+
 def get_unique_contract_code(length=9, attempts=5):
     """Reserve a code that is actually free rather than trusting 62^9 entropy."""
     for _ in range(attempts):

@@ -183,6 +183,32 @@ and while the tab is hidden, so a closed escrow costs nothing.
         </div>
         {% endif %}
 
+        {% if show_seller_raise_dispute %}
+        <div class="card card-custom shadow-sm border-danger mb-3">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Raise Dispute</h5>
+                <p class="text-muted small mb-4">Something wrong? Raising a dispute locks the funds while we investigate.</p>
+                <form method="post" action="{% url 'seller_raise_dispute' contract.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-lg w-100">Raise Dispute</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if show_cancel_button %}
+        <div class="card card-custom shadow-sm mb-3">
+            <div class="card-body p-4 text-center">
+                <h5 class="text-navy fw-bold mb-3">Cancel Escrow</h5>
+                <p class="text-muted small mb-4">No payment has been taken yet. Cancelling closes this escrow immediately.</p>
+                <form method="post" action="{% url 'cancel_escrow' contract.code %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-lg w-100">Cancel Escrow</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
         {% if show_settlement_vault %}
         <div class="card card-custom shadow-sm mb-3">
             <div class="card-body p-4">

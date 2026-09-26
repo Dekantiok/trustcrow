@@ -20,5 +20,7 @@ urlpatterns = [
     path('escrow/<str:code>/receipt/', views.buyer_confirm_receipt, name='buyer_confirm_receipt'),
     path('escrow/<str:code>/release/', views.buyer_release_funds, name='buyer_release_funds'),
     path('escrow/<str:code>/dispute/', views.buyer_raise_dispute, name='buyer_raise_dispute'),
+    path('escrow/<str:code>/seller-dispute/', views.seller_raise_dispute, name='seller_raise_dispute'),
+    path('escrow/<str:code>/cancel/', views.cancel_escrow, name='cancel_escrow'),
     path('escrow/<str:code>/vault/', views.seller_add_vault, name='seller_add_vault'),
 ]

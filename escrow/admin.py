@@ -36,8 +36,16 @@ class EscrowContractAdmin(admin.ModelAdmin):
                     level=messages.WARNING,
                 )
                 continue
+            was_funded = contract.status not in EscrowContract.PRE_FUNDING_STATUSES
             contract.transition_to('cancelled')
             changed += 1
+            if was_funded:
+                self.message_user(
+                    request,
+                    f"{contract.code} was already funded: process a Paystack refund "
+                    f"for reference {contract.gateway_reference} if the buyer was charged.",
+                    level=messages.WARNING,
+                )
         self.message_user(
             request, f"{verb} {changed} escrow(s).", level=messages.INFO
         )

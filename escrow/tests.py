@@ -379,7 +379,7 @@ class WebhookTest(TestCase):
                                       amount=Decimal('10000.00'))
         self.url = reverse('paystack_webhook')
 
-    def post(self, mock_gateway, event='charge.success', amount=1000000):
+    def post(self, mock_gateway, event='charge.success', amount=1150000):
         mock_gateway.return_value.verify_incoming_webhook.return_value = {
             'event': event,
             'data': {'reference': self.contract.gateway_reference, 'amount': amount},

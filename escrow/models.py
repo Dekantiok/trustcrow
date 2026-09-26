@@ -29,20 +29,26 @@ class EscrowContract(models.Model):
     ]
 
     # The single source of truth for the escrow lifecycle. Every status change
-    # must appear here or transition_to() will refuse it. `disputed` and
-    # `cancelled` are only reachable from staff actions, never from a
-    # counterparty-driven view.
+    # must appear here or transition_to() will refuse it. `cancelled` after
+    # funding requires an ops refund check (see admin warning); `disputed`
+    # is reachable from either counterparty once value is at risk.
     TRANSITIONS = {
         'pending_verification': {'awaiting_counterparty', 'cancelled'},
         'awaiting_counterparty': {'awaiting_funding', 'cancelled'},
         'awaiting_funding': {'awaiting_dispatch', 'disputed', 'cancelled'},
-        'awaiting_dispatch': {'in_transit', 'cancelled'},
-        'in_transit': {'in_inspection', 'cancelled'},
+        'awaiting_dispatch': {'in_transit', 'disputed', 'cancelled'},
+        'in_transit': {'in_inspection', 'disputed', 'cancelled'},
         'in_inspection': {'pending_payout', 'disputed', 'cancelled'},
         'pending_payout': {'completed', 'disputed', 'cancelled'},
         'disputed': {'pending_payout', 'cancelled'},
         'completed': set(),
         'cancelled': set(),
+    }
+
+    # States where no money has moved yet, so a party can cancel outright
+    # with no refund required.
+    PRE_FUNDING_STATUSES = {
+        'pending_verification', 'awaiting_counterparty', 'awaiting_funding',
     }
 
     TERMINAL_STATUSES = {'completed', 'cancelled'}
@@ -100,6 +106,17 @@ class EscrowContract(models.Model):
         if self.fee_payer == 'seller':
             return self.amount - self.service_fee
         return self.amount
+
+    @property
+    def total_charge(self):
+        """What the buyer actually pays at checkout (amount + fee if buyer pays)."""
+        if self.fee_payer == 'buyer':
+            return self.amount + self.service_fee
+        return self.amount
+
+    @property
+    def total_charge_kobo(self):
+        return int(self.total_charge * 100)
 
     @property
     def is_inspection_expired(self):

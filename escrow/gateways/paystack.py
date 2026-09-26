@@ -22,13 +22,16 @@ class PaystackGateway(PaymentGatewayBase):
         self.secret_key = getattr(settings, 'PAYSTACK_SECRET_KEY', 'sk_test_dummy')
         self.base_url = "https://api.paystack.co"
 
-    def initialize_vault_payment(self, escrow_record, return_url):
-        if escrow_record.fee_payer == 'buyer':
-            total_amount = escrow_record.amount + escrow_record.service_fee
-        else:
-            total_amount = escrow_record.amount
+    def _headers(self):
+        return {
+            "Authorization": f"Bearer {self.secret_key}",
+            "Content-Type": "application/json",
+        }
 
-        amount_in_kobo = int(total_amount * 100)
+    def initialize_vault_payment(self, escrow_record, return_url):
+        # Must match EscrowContract.total_charge_kobo, which the webhook
+        # validates against. Do not re-derive the fee rule here.
+        amount_in_kobo = escrow_record.total_charge_kobo
         payer_email = escrow_record.buyer_email
 
         payload = {
@@ -46,7 +49,7 @@ class PaystackGateway(PaymentGatewayBase):
             response = requests.post(
                 f"{self.base_url}/transaction/initialize",
                 json=payload,
-                headers=headers,
+                headers=self._headers(),
                 timeout=_timeout(),
             )
             data = response.json()
@@ -80,23 +83,62 @@ class PaystackGateway(PaymentGatewayBase):
             logger.warning("Paystack webhook rejected: body was not valid JSON")
             return False
 
+    def _create_transfer_recipient(self, settlement_vault_record):
+        """Create (or fetch existing) Paystack recipient; returns recipient_code or None.
+
+        Paystack dedupes on account number, so calling this on every payout
+        is idempotent — a retry returns the existing recipient record.
+        """
+        payload = {
+            "type": "nuban",
+            "name": settlement_vault_record.account_name,
+            "account_number": settlement_vault_record.account_number,
+            "bank_code": settlement_vault_record.bank_code,
+            "currency": "NGN",
+        }
+        try:
+            response = requests.post(
+                f"{self.base_url}/transferrecipient",
+                json=payload,
+                headers=self._headers(),
+                timeout=_timeout(),
+            )
+            data = response.json()
+            if data.get("status"):
+                return data.get("data", {}).get("recipient_code")
+            logger.error(
+                "Paystack recipient creation rejected for account %s: %s",
+                settlement_vault_record.masked_account_number,
+                data.get("message"),
+            )
+            return None
+        except Exception:
+            logger.exception("Paystack recipient creation failed")
+            return None
+
     def execute_seller_payout(self, settlement_vault_record, total_disbursement):
         amount_in_kobo = int(total_disbursement * 100)
+        recipient_code = self._create_transfer_recipient(settlement_vault_record)
+        if not recipient_code:
+            return {"status": False, "error": "recipient creation failed"}
+
+        try:
+            contract_code = settlement_vault_record.contract.code
+        except Exception:
+            contract_code = "unknown"
         payload = {
             "source": "balance",
             "amount": amount_in_kobo,
             "currency": "NGN",
-            "recipient": settlement_vault_record.account_number
-        }
-        headers = {
-            "Authorization": f"Bearer {self.secret_key}",
-            "Content-Type": "application/json"
+            "recipient": recipient_code,
+            "reason": f"Trustcrow escrow {contract_code} settlement",
+            "reference": f"trustcrow-{contract_code}-{amount_in_kobo}",
         }
         try:
             response = requests.post(
                 f"{self.base_url}/transfer",
                 json=payload,
-                headers=headers,
+                headers=self._headers(),
                 timeout=_timeout(),
             )
             data = response.json()
@@ -109,4 +151,19 @@ class PaystackGateway(PaymentGatewayBase):
             return data
         except Exception as e:
             logger.exception("Paystack transfer failed")
+            return {"status": False, "error": str(e)}
+
+    def refund_payment(self, gateway_reference, amount_kobo=None):
+        """Attempt a Paystack refund for a captured transaction reference."""
+        payload = {"transaction": gateway_reference}
+        try:
+            response = requests.post(
+                f"{self.base_url}/refund",
+                json=payload,
+                headers=self._headers(),
+                timeout=_timeout(),
+            )
+            return response.json()
+        except Exception as e:
+            logger.exception("Paystack refund failed for %s", gateway_reference)
             return {"status": False, "error": str(e)}

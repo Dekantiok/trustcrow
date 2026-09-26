@@ -68,9 +68,25 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # Override with DJANGO_DB_PATH in production-like single-node deploys.
+        # For multi-worker / multi-node traffic, switch ENGINE to Postgres —
+        # SQLite serialises writes and cannot share state across hosts.
+        'NAME': Path(os.environ.get('DJANGO_DB_PATH', BASE_DIR / 'db.sqlite3')),
     }
 }
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'trustcrow',
+    }
+}
+
+# Passwordless OTP sessions: bound the window a stolen session stays useful.
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', '86400'))
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 AUTH_PASSWORD_VALIDATORS = [
     {

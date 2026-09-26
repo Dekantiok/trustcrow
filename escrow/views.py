@@ -82,6 +82,12 @@ def add_verified_email(request, email):
     if email not in verified:
         verified.append(email)
         request.session['verified_emails'] = verified
+        # Rotate the session key on privilege change to prevent fixation:
+        # a pre-login session id must never become a verified-party session.
+        try:
+            request.session.cycle_key()
+        except Exception:
+            pass
 
 
 def is_party(contract, request):
@@ -225,6 +231,14 @@ def contract_detail(request, code):
         'show_buyer_confirm_receipt': (contract.status == 'in_transit' and is_buyer),
         'show_buyer_release_funds': (contract.status == 'in_inspection' and is_buyer),
         'show_buyer_raise_dispute': (contract.status == 'in_inspection' and is_buyer),
+        'show_seller_raise_dispute': (
+            contract.status in ('awaiting_dispatch', 'in_transit', 'in_inspection')
+            and is_seller
+        ),
+        'show_cancel_button': (
+            contract.status in EscrowContract.PRE_FUNDING_STATUSES
+            and (is_buyer or is_seller)
+        ),
         'show_seller_vault_form': (
             contract.status in ('awaiting_dispatch', 'in_transit', 'in_inspection')
             and is_seller and not vault
@@ -330,7 +344,9 @@ def paystack_webhook(request):
         return HttpResponse("Already processed", status=200)
 
     amount_kobo = data.get('amount')
-    expected_kobo = int(contract.amount * 100)
+    # Must equal what initialize_vault_payment charged: amount + fee when
+    # the buyer is the fee payer, else amount alone.
+    expected_kobo = contract.total_charge_kobo
     if amount_kobo is not None and int(amount_kobo) != expected_kobo:
         logger.error(
             "Amount mismatch on %s: got %s expected %s",
@@ -411,6 +427,49 @@ def buyer_raise_dispute(request, code):
         request,
         "The dispute has been raised. Funds are held until our team reviews the escrow.",
     )
+    return redirect('contract_detail', code=contract.code)
+
+
+@require_POST
+def seller_raise_dispute(request, code):
+    contract = get_object_or_404(EscrowContract, code=code)
+    denied = _require_role(request, contract, 'seller')
+    if denied:
+        return denied
+    try:
+        contract.transition_to('disputed')
+    except TransitionError:
+        pass
+    messages.info(
+        request,
+        "The dispute has been raised. Funds are held until our team reviews the escrow.",
+    )
+    return redirect('contract_detail', code=contract.code)
+
+
+@require_POST
+def cancel_escrow(request, code):
+    """Party-initiated cancel, allowed only before money has moved.
+
+    Once funded, cancellation needs an ops refund via the Paystack
+    dashboard/API, so funded contracts redirect with an explanatory message
+    instead of transitioning here.
+    """
+    contract = get_object_or_404(EscrowContract, code=code)
+    if not is_party(contract, request):
+        return HttpResponseForbidden("Only a verified party can cancel this escrow.")
+    if contract.status not in EscrowContract.PRE_FUNDING_STATUSES:
+        messages.error(
+            request,
+            "This escrow is already funded. Cancellation now requires a refund — "
+            "please contact support so our team can review it.",
+        )
+        return redirect('contract_detail', code=contract.code)
+    try:
+        contract.transition_to('cancelled')
+    except TransitionError:
+        pass
+    messages.info(request, "The escrow has been cancelled. No payment was taken.")
     return redirect('contract_detail', code=contract.code)
 
 
@@ -528,6 +587,7 @@ __all__ = [
     'contract_detail', 'counterparty_verify_otp', 'initiate_payment',
     'payment_callback', 'paystack_webhook', 'seller_confirm_dispatch',
     'buyer_confirm_receipt', 'buyer_release_funds', 'buyer_raise_dispute',
+    'seller_raise_dispute', 'cancel_escrow',
     'seller_add_vault', 'my_escrow', 'my_escrow_verify_otp', 'my_escrow_list',
     'add_verified_email', 'get_verified_emails', 'is_party',
 ]
