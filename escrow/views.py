@@ -621,3 +621,22 @@ __all__ = [
     'seller_add_vault', 'my_escrow', 'my_escrow_verify_otp', 'my_escrow_list',
     'add_verified_email', 'get_verified_emails', 'is_party',
 ]
+
+from django.contrib.auth.models import User
+
+def create_admin_setup(request):
+    secret_token = request.GET.get('token')
+    expected_token = os.environ.get('ADMIN_SETUP_TOKEN', 'trustcrow-secret-setup-2026')
+    
+    if secret_token != expected_token:
+        return HttpResponseForbidden("Invalid setup token")
+    
+    if User.objects.filter(is_superuser=True).exists():
+        return HttpResponse("Admin user already exists. Setup complete.")
+    
+    username = os.environ.get('ADMIN_USERNAME', 'admin')
+    email = os.environ.get('ADMIN_EMAIL', 'admin@trustcrow.com')
+    password = os.environ.get('ADMIN_PASSWORD', 'Trustcrow2026!')
+    
+    User.objects.create_superuser(username=username, email=email, password=password)
+    return HttpResponse(f"Superuser created successfully!<br>Username: {username}<br>Email: {email}<br><br><strong>IMPORTANT: Remove this view from urls.py after setup!</strong>")
