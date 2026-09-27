@@ -4,7 +4,6 @@ from escrow import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('setup-admin/', views.create_admin_setup, name='setup_admin'),
     path('', views.home_view, name='home'),
     path('my-escrow/', views.my_escrow, name='my_escrow'),
     path('join/', views.join_escrow_page, name='join_escrow_page'),
