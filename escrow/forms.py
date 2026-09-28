@@ -64,17 +64,49 @@ class ContractCreationForm(forms.ModelForm):
 
 
 class SettlementVaultForm(forms.ModelForm):
+    # Bank + account number only. bank_name / account_name are never trusted
+    # from the client — seller_add_vault fills them from Paystack's
+    # bank/resolve response before saving, so a payee name can't be spoofed.
+    # bank_code stays as data (Paystack resolve requires it) but is rendered
+    # as a dropdown, not a free-text code field.
+    bank_code = forms.ChoiceField(
+        label="Bank",
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
     class Meta:
         model = SettlementVault
-        fields = ['bank_name', 'bank_code', 'account_number', 'account_name']
+        fields = ['bank_code', 'account_number']
         widgets = {
             'account_number': forms.TextInput(attrs={
+                'class': 'form-control',
                 'maxlength': 10,
                 'pattern': r'\d{10}',
                 'inputmode': 'numeric',
                 'autocomplete': 'off',
+                'placeholder': '10-digit account number',
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        banks = kwargs.pop('banks', None)
+        super().__init__(*args, **kwargs)
+        if banks is None:
+            # Imported here to avoid a forms <-> bank_verification cycle at import.
+            from .bank_verification import list_banks
+            try:
+                banks = list_banks()
+            except Exception:
+                banks = {}
+        self.fields['bank_code'].choices = [('', 'Select your bank')] + [
+            (code, name) for code, name in sorted(banks.items(), key=lambda kv: kv[1])
+        ]
+
+    def clean_bank_code(self):
+        code = (self.cleaned_data.get('bank_code') or '').strip()
+        if not code:
+            raise ValidationError("Please select your bank.")
+        return code
 
     def clean_account_number(self):
         account_number = (self.cleaned_data.get('account_number') or '').strip()

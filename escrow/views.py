@@ -514,9 +514,11 @@ def seller_add_vault(request, code):
         return redirect('contract_detail', code=contract.code)
 
     if request.method == 'POST':
-        form = SettlementVaultForm(request.POST)
+        form = SettlementVaultForm(request.POST, banks=list_banks())
         if form.is_valid():
             vault = form.save(commit=False)
+            # Verify with Paystack BEFORE saving anything. Nothing is
+            # persisted unless the account number + bank resolve.
             verification = verify_bank_account(vault.account_number, vault.bank_code)
             if verification.get('status'):
                 # Trust the resolver's answer over what was typed, so a payee
@@ -525,6 +527,10 @@ def seller_add_vault(request, code):
                 vault.bank_name = get_bank_name(vault.bank_code)[:100]
                 vault.contract = contract
                 vault.save()
+                messages.success(
+                    request,
+                    f"Payout account verified and saved ({vault.account_name}).",
+                )
                 return redirect('contract_detail', code=contract.code)
             messages.error(
                 request,
@@ -532,11 +538,11 @@ def seller_add_vault(request, code):
                 f"{verification.get('error') or 'Unknown error'}",
             )
     else:
-        form = SettlementVaultForm()
+        form = SettlementVaultForm(banks=list_banks())
 
     return render(
         request, 'escrow/add_vault.html',
-        {'form': form, 'contract': contract, 'banks': list_banks()},
+        {'form': form, 'contract': contract},
     )
 
 
