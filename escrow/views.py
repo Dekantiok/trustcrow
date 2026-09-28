@@ -73,26 +73,59 @@ def naira(value):
     return f"\u20a6{value:,.2f}"
 
 
+def get_contract_verified_email(request, contract):
+    """Email this device verified for THIS contract, or ''.
+
+    Buyer and seller are different people on different devices, so
+    verification is scoped per escrow code: this browser holds at most
+    one role per contract. The old global ``verified_emails`` list is
+    only consulted as a one-party legacy fallback; a legacy session
+    holding both parties is treated as unverified to force a fresh,
+    single-role verify.
+    """
+    code = contract.code
+    scoped = request.session.get('verified_contracts', {})
+    email = normalize_email(scoped.get(code, ''))
+    if email and email in contract.parties:
+        return email
+    my_email = normalize_email(request.session.get('my_escrow_verified', ''))
+    if my_email and my_email in contract.parties:
+        return my_email
+    legacy = [normalize_email(e) for e in request.session.get('verified_emails', [])]
+    matched = [e for e in legacy if e in contract.parties]
+    if len(matched) == 1:
+        return matched[0]
+    return ''
+
+
 def get_verified_emails(request):
+    # Legacy accessor kept for backwards compatibility; new code should
+    # use get_contract_verified_email() which is scoped per contract.
     return [normalize_email(e) for e in request.session.get('verified_emails', [])]
 
 
-def add_verified_email(request, email):
+def set_contract_verified_email(request, code, email):
     email = normalize_email(email)
-    verified = get_verified_emails(request)
-    if email not in verified:
-        verified.append(email)
-        request.session['verified_emails'] = verified
-        # Rotate the session key on privilege change to prevent fixation:
-        # a pre-login session id must never become a verified-party session.
-        try:
-            request.session.cycle_key()
-        except Exception:
-            pass
+    scoped = dict(request.session.get('verified_contracts', {}))
+    scoped[code] = email
+    request.session['verified_contracts'] = scoped
+    # Rotate the session key on privilege change to prevent fixation:
+    # a pre-login session id must never become a verified-party session.
+    try:
+        request.session.cycle_key()
+    except Exception:
+        pass
+
+
+def add_verified_email(request, email):
+    # Legacy helper: bind the email to every contract it belongs to is
+    # unsafe (one device becomes both parties), so this is a no-op kept
+    # only so old imports keep working. Use set_contract_verified_email.
+    return None
 
 
 def is_party(contract, request):
-    return bool(set(get_verified_emails(request)) & set(contract.parties))
+    return bool(get_contract_verified_email(request, contract))
 
 
 def home_view(request):
@@ -147,9 +180,19 @@ def _verify_and_advance(request, contract, intent, next_status, email):
     """
     Shared body for the two OTP verification views.
 
-    Returns (redirect_response, error_message). consume_otp is called exactly
-    once per submission so an attempt is only ever counted once.
+    One device holds one role per contract: if this browser already
+    verified as the OTHER party for this escrow, refuse before burning
+    an OTP attempt. Returns (redirect_response, error_message).
+    consume_otp is called exactly once per submission so an attempt is
+    only ever counted once.
     """
+    email = normalize_email(email)
+    existing = get_contract_verified_email(request, contract)
+    if existing and existing != email:
+        return None, (
+            "This device already verified as "
+            f"{existing}. The other party must verify on their own device."
+        )
     result = consume_otp(email, request.POST.get('otp'), intent)
     if not result.ok:
         return None, result.message
@@ -160,7 +203,7 @@ def _verify_and_advance(request, contract, intent, next_status, email):
             "Rejected %s -> %s on contract %s", contract.status, next_status, contract.code
         )
         return redirect('contract_detail', code=contract.code), None
-    add_verified_email(request, email)
+    set_contract_verified_email(request, contract.code, email)
     return redirect('contract_detail', code=contract.code), None
 
 
@@ -206,9 +249,9 @@ def contract_detail(request, code):
             status=403,
         )
 
-    verified_emails = get_verified_emails(request)
-    is_buyer = contract.buyer_email in verified_emails
-    is_seller = contract.seller_email in verified_emails
+    verified_email = get_contract_verified_email(request, contract)
+    is_buyer = verified_email == contract.buyer_email
+    is_seller = verified_email == contract.seller_email
     vault = getattr(contract, 'settlement_vault', None)
 
     context = {
@@ -252,10 +295,9 @@ def contract_detail(request, code):
         'show_buyer_completed': (contract.status == 'completed' and is_buyer),
         'show_settlement_vault': bool(vault),
         'show_disputed_notice': (contract.status == 'disputed'),
-        # Shared-device case: this browser verified both inboxes, so actions
-        # for both sides are shown. Each party on their own device only
-        # ever sees their own actions.
-        'show_role_overlap_notice': (is_buyer and is_seller),
+        # One device holds one role per contract, so both sides are never
+        # shown together. Kept as False for template compatibility.
+        'show_role_overlap_notice': False,
         'formatted_amount': naira(contract.amount),
         'formatted_fee': naira(contract.service_fee),
         'formatted_seller_receives': naira(contract.seller_receives),
@@ -284,7 +326,7 @@ def contract_detail(request, code):
 @require_POST
 def initiate_payment(request, code):
     contract = get_object_or_404(EscrowContract, code=code)
-    if contract.buyer_email not in get_verified_emails(request):
+    if get_contract_verified_email(request, contract) != contract.buyer_email:
         return HttpResponseForbidden("Only the verified buyer can fund this escrow.")
     if contract.status != 'awaiting_funding':
         return redirect('contract_detail', code=contract.code)
@@ -398,7 +440,7 @@ def paystack_webhook(request):
 
 def _require_role(request, contract, role):
     email = contract.buyer_email if role == 'buyer' else contract.seller_email
-    if email not in get_verified_emails(request):
+    if get_contract_verified_email(request, contract) != email:
         return HttpResponseForbidden(
             f"Only the verified {role} can perform this action."
         )
@@ -585,7 +627,6 @@ def my_escrow_verify_otp(request):
         if result.ok:
             request.session['my_escrow_verified'] = email
             del request.session['my_escrow_pending_email']
-            add_verified_email(request, email)
             return redirect('my_escrow_list')
         error_message = result.message
 
@@ -630,4 +671,5 @@ __all__ = [
     'seller_raise_dispute', 'cancel_escrow',
     'seller_add_vault', 'my_escrow', 'my_escrow_verify_otp', 'my_escrow_list',
     'add_verified_email', 'get_verified_emails', 'is_party',
+    'get_contract_verified_email', 'set_contract_verified_email',
 ]

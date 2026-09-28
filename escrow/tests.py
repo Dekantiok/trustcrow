@@ -44,10 +44,20 @@ def make_contract(**overrides):
     return EscrowContract.objects.create(code=code, **fields)
 
 
-def verify(client, email):
-    """Put an email into the session's verified list, as OTP confirmation does."""
+def verify(client, email, code=None):
+    """Verify an email as OTP confirmation does (single role per device).
+
+    When ``code`` is given, binds that contract to the email via the
+    per-contract session map. Otherwise falls back to the My Escrow
+    single-email session, which grants that one role wherever it matches.
+    """
     session = client.session
-    session['verified_emails'] = [email]
+    session['my_escrow_verified'] = email
+    session.pop('verified_emails', None)
+    if code is not None:
+        scoped = dict(session.get('verified_contracts', {}))
+        scoped[code] = email
+        session['verified_contracts'] = scoped
     session.save()
 
 
@@ -262,7 +272,9 @@ class ContractCreationTest(TestCase):
         )
         contract.refresh_from_db()
         self.assertEqual(contract.status, 'awaiting_counterparty')
-        self.assertIn('buyer@test.com', self.client.session['verified_emails'])
+        self.assertEqual(
+            self.client.session['verified_contracts'][contract.code], 'buyer@test.com'
+        )
 
     def test_service_fee_is_server_computed(self):
         with patch('escrow.services.send_otp_via_termii', return_value=True):
@@ -310,7 +322,9 @@ class JoinEscrowTest(TestCase):
         )
         self.contract.refresh_from_db()
         self.assertEqual(self.contract.status, 'awaiting_funding')
-        self.assertIn('seller@test.com', self.client.session['verified_emails'])
+        self.assertEqual(
+            self.client.session['verified_contracts']['JOIN1'], 'seller@test.com'
+        )
 
     def test_wrong_email_is_rejected(self):
         response = self.client.post(
@@ -333,6 +347,33 @@ class JoinEscrowTest(TestCase):
             reverse('join_escrow_page'), {'code': 'JOIN1', 'email': SELLER}
         )
         self.assertContains(response, 'not currently accepting')
+
+    @patch('escrow.services.send_otp_via_termii', return_value=True)
+    def test_same_device_cannot_verify_both_roles(self, _mock):
+        """Buyer and seller are different people: one browser holds one role."""
+        creator_contract = make_contract(
+            code='DUAL1', status='pending_verification',
+            creator_email=BUYER, creator_role='buyer', counterparty_email=SELLER,
+        )
+        creator_otp = issue_otp(BUYER, 'create')
+        self.client.post(
+            reverse('verify_otp', kwargs={'code': 'DUAL1'}),
+            {'otp': creator_otp.otp_code},
+        )
+        creator_contract.refresh_from_db()
+        self.assertEqual(creator_contract.status, 'awaiting_counterparty')
+
+        join_otp = issue_otp(SELLER, 'join')
+        response = self.client.post(
+            reverse('counterparty_verify_otp', kwargs={'code': 'DUAL1'}),
+            {'otp': join_otp.otp_code},
+        )
+        self.assertContains(response, 'must verify on their own device')
+        creator_contract.refresh_from_db()
+        # Second role refused: status unchanged, seller OTP left unconsumed.
+        self.assertEqual(creator_contract.status, 'awaiting_counterparty')
+        join_otp.refresh_from_db()
+        self.assertFalse(join_otp.is_used)
 
 
 class AuthorizationTest(TestCase):
@@ -969,7 +1010,7 @@ class SmokeTest(TestCase):
             account_number='1234567890', account_name='Seller Name',
         )
         session = self.client.session
-        session['verified_emails'] = [BUYER, SELLER]
+        session['verified_contracts'] = {'SMOKE1': BUYER}
         session['my_escrow_verified'] = BUYER
         session.save()
 
@@ -988,12 +1029,15 @@ class SmokeTest(TestCase):
 
     def test_vault_form_renders_when_no_vault_exists(self):
         # Bank names come from the gateway, so the list is stubbed here.
+        # Seller-only page: verify this device as the seller for SMOKE2.
         make_contract(code='SMOKE2', status='awaiting_dispatch')
+        verify(self.client, SELLER, code='SMOKE2')
         with patch('escrow.views.list_banks', return_value={'058': 'Guaranty Trust Bank'}):
             response = self.client.get(reverse('seller_add_vault', kwargs={'code': 'SMOKE2'}))
         self.assertEqual(response.status_code, 200)
 
     def test_vault_page_redirects_once_a_vault_exists(self):
+        verify(self.client, SELLER, code='SMOKE1')
         with patch('escrow.views.list_banks', return_value={'058': 'Guaranty Trust Bank'}):
             response = self.client.get(reverse('seller_add_vault', kwargs={'code': 'SMOKE1'}))
         self.assertRedirects(
