@@ -96,6 +96,13 @@ and while the tab is hidden, so a closed escrow costs nothing.
             </div>
         </div>
 
+        {% if show_role_overlap_notice %}
+        <div class="alert alert-warning border-0 py-2 small mb-3">
+            <i class="bi bi-people me-1"></i>
+            This device is verified as both buyer and seller, so actions for both sides are shown. Each party on their own device sees only their own actions.
+        </div>
+        {% endif %}
+
         {% if show_disputed_notice %}
         <div class="card card-custom shadow-sm border-danger mb-3">
             <div class="card-body p-4 text-center">

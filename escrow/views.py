@@ -252,6 +252,10 @@ def contract_detail(request, code):
         'show_buyer_completed': (contract.status == 'completed' and is_buyer),
         'show_settlement_vault': bool(vault),
         'show_disputed_notice': (contract.status == 'disputed'),
+        # Shared-device case: this browser verified both inboxes, so actions
+        # for both sides are shown. Each party on their own device only
+        # ever sees their own actions.
+        'show_role_overlap_notice': (is_buyer and is_seller),
         'formatted_amount': naira(contract.amount),
         'formatted_fee': naira(contract.service_fee),
         'formatted_seller_receives': naira(contract.seller_receives),
