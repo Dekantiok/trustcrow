@@ -41,7 +41,7 @@ STATUS_LABELS = {
 
 STATUS_BADGES = {
     'pending_verification': 'bg-warning text-dark',
-    'awaiting_counterparty': 'bg-info text-dark',
+    'awaiting_counterparty': 'bg-dark text-white',
     'awaiting_funding': 'bg-primary-custom',
     'awaiting_dispatch': 'bg-warning text-dark',
     'in_transit': 'bg-secondary',

@@ -145,13 +145,13 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_buyer_confirm_receipt %}
-        <div class="card card-custom shadow-sm border-info mb-3">
+        <div class="card card-custom shadow-sm border-primary-custom mb-3">
             <div class="card-body p-4 text-center">
                 <h5 class="text-navy fw-bold mb-3">Confirm Item Received</h5>
                 <p class="text-muted small mb-4">Have you received the item or service? Confirming starts your {{ contract.inspection_days }}-day inspection window.</p>
                 <form method="post" action="{% url 'buyer_confirm_receipt' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-info btn-lg w-100 text-white">Yes, I Received It</button>
+                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">Yes, I Received It</button>
                 </form>
             </div>
         </div>

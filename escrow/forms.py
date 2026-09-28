@@ -27,6 +27,16 @@ class ContractCreationForm(forms.ModelForm):
         self.fields['amount'].max_value = MAX_ESCROW_AMOUNT
         self.fields['inspection_days'].min_value = MIN_INSPECTION_DAYS
         self.fields['inspection_days'].max_value = MAX_INSPECTION_DAYS
+        # Bootstrap styling for every field (Django renders plain widgets by
+        # default, which would appear unstyled on the create page).
+        for name, field in self.fields.items():
+            widget = field.widget
+            if isinstance(widget, forms.Select):
+                widget.attrs.setdefault('class', 'form-select')
+            elif isinstance(widget, forms.CheckboxInput):
+                widget.attrs.setdefault('class', 'form-check-input')
+            else:
+                widget.attrs.setdefault('class', 'form-control')
         for name in ('creator_email', 'counterparty_email'):
             self.fields[name].widget.attrs.setdefault('autocapitalize', 'none')
             self.fields[name].widget.attrs.setdefault('autocomplete', 'email')
