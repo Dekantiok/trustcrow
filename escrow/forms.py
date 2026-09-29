@@ -41,6 +41,17 @@ class ContractCreationForm(forms.ModelForm):
             self.fields[name].widget.attrs.setdefault('autocapitalize', 'none')
             self.fields[name].widget.attrs.setdefault('autocomplete', 'email')
             self.fields[name].widget.attrs.setdefault('spellcheck', 'false')
+        placeholders = {
+            'title': 'e.g. MacBook Pro M3 or Web Design Milestone',
+            'description': 'Specify the item condition, delivery terms, and acceptance criteria...',
+            'amount': '50000',
+            'creator_email': 'you@example.com',
+            'counterparty_email': 'counterparty@example.com',
+            'inspection_days': '3',
+        }
+        for name, ph in placeholders.items():
+            if name in self.fields:
+                self.fields[name].widget.attrs.setdefault('placeholder', ph)
 
     def clean_amount(self):
         amount = self.cleaned_data['amount']

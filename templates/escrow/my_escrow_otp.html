@@ -19,12 +19,16 @@
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <input type="text" name="otp" class="form-control form-control-lg text-center mono-text fs-3 otp-input" style="letter-spacing:0.5em;" placeholder="000000" maxlength="6" minlength="6" inputmode="numeric" autocomplete="one-time-code" required autofocus>
+                        <input type="text" name="otp" class="form-control form-control-lg text-center mono-text fs-3 otp-input" placeholder="000000" maxlength="6" minlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" required autofocus>
                     </div>
                     <button type="submit" class="btn btn-primary-custom btn-lg w-100">
                         <i class="bi bi-shield-check me-2"></i>Verify & View Escrows
                     </button>
                 </form>
+
+                <div class="text-center mt-4">
+                    <a href="{% url 'my_escrow' %}" class="text-muted-custom small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Use a different email</a>
+                </div>
             </div>
         </div>
     </div>

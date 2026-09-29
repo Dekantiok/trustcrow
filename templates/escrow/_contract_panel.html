@@ -10,7 +10,7 @@ and while the tab is hidden, so a closed escrow costs nothing.
      hx-swap="outerHTML"{% endif %}>
     <div class="col-12 col-md-8 col-lg-6">
 
-        <div class="card card-custom shadow-sm mb-3">
+        <div class="card card-custom mb-3">
             <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-start mb-1">
                     <h3 class="text-navy fw-bold mb-0">{{ contract.title }}</h3>
@@ -31,11 +31,11 @@ and while the tab is hidden, so a closed escrow costs nothing.
                     <div class="progress-bar" style="width: {{ progress_pct }}%"></div>
                 </div>
                 <div class="step-labels">
-                    <span>Created</span>
-                    <span>Funded</span>
-                    <span>Dispatched</span>
-                    <span>Inspected</span>
-                    <span>Settled</span>
+                    <span class="{% if stage >= 2 %}text-dark fw-bold{% else %}text-muted-custom{% endif %}">Created</span>
+                    <span class="{% if stage >= 4 %}text-dark fw-bold{% else %}text-muted-custom{% endif %}">Funded</span>
+                    <span class="{% if stage >= 5 %}text-dark fw-bold{% else %}text-muted-custom{% endif %}">Dispatched</span>
+                    <span class="{% if stage >= 6 %}text-dark fw-bold{% else %}text-muted-custom{% endif %}">Inspected</span>
+                    <span class="{% if stage >= 8 %}text-dark fw-bold{% else %}text-muted-custom{% endif %}">Settled</span>
                 </div>
 
                 <hr>
@@ -51,7 +51,7 @@ and while the tab is hidden, so a closed escrow costs nothing.
                     </button>
                 </div>
 
-                <p class="mb-3">{{ contract.description }}</p>
+                <p class="text-secondary small mb-3" style="line-height:1.6; white-space:pre-line;">{{ contract.description }}</p>
 
                 <div class="row g-3">
                     <div class="col-6">
@@ -70,13 +70,13 @@ and while the tab is hidden, so a closed escrow costs nothing.
                         <div class="small text-muted">Inspection Window</div>
                         <div class="fw-semibold">{{ contract.inspection_days }} days</div>
                     </div>
-                    <div class="col-6">
-                        <div class="small text-muted">Creator</div>
-                        <div class="small mono-text">{{ contract.creator_email }}</div>
+                    <div class="col-12 col-sm-6">
+                        <div class="small text-muted">Creator ({% if contract.creator_role == 'buyer' %}Buyer{% else %}Seller{% endif %}){% if is_buyer and contract.creator_role == 'buyer' or is_seller and contract.creator_role == 'seller' %}&nbsp;<span class="badge bg-light text-dark border">You</span>{% endif %}</div>
+                        <div class="small mono-text text-break">{{ contract.creator_email }}</div>
                     </div>
-                    <div class="col-6">
-                        <div class="small text-muted">Counterparty</div>
-                        <div class="small mono-text">{{ contract.counterparty_email }}</div>
+                    <div class="col-12 col-sm-6">
+                        <div class="small text-muted">Counterparty ({% if contract.creator_role == 'buyer' %}Seller{% else %}Buyer{% endif %}){% if is_buyer and contract.creator_role == 'seller' or is_seller and contract.creator_role == 'buyer' %}&nbsp;<span class="badge bg-light text-dark border">You</span>{% endif %}</div>
+                        <div class="small mono-text text-break">{{ contract.counterparty_email }}</div>
                     </div>
                     {% if contract.status == 'in_inspection' %}
                     <div class="col-12">
@@ -105,9 +105,12 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_disputed_notice %}
-        <div class="card card-custom shadow-sm border-danger mb-3">
+        <div class="card card-custom border-danger mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Dispute Raised</h5>
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle text-danger" style="width:56px;height:56px;background:rgba(220, 38, 38, 0.1);">
+                    <i class="bi bi-exclamation-octagon-fill fs-2"></i>
+                </div>
+                <h5 class="text-navy fw-bold mb-2">Dispute Raised</h5>
                 <p class="text-muted small mb-0">
                     Funds are held while our team reviews this escrow. We will contact both
                     parties by email with the outcome.
@@ -117,110 +120,129 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_payment_button %}
-        <div class="card card-custom shadow-sm border-primary-custom mb-3">
+        <div class="card card-custom border-primary-custom mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Make Payment</h5>
-                <p class="text-muted small mb-4">Fund the escrow to secure the transaction. Funds are held until you approve the item.</p>
+                <h5 class="text-navy fw-bold mb-2">Make Payment</h5>
+                <p class="text-muted small mb-4">Fund the escrow to secure the transaction. Funds are held safely until you inspect and approve the item.</p>
                 <form method="post" action="{% url 'initiate_payment' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">Proceed to Payment</button>
+                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">
+                        <i class="bi bi-credit-card me-2"></i>Proceed to Payment
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_seller_dispatch_button %}
-        <div class="card card-custom shadow-sm border-warning mb-3">
+        <div class="card card-custom border-warning mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Confirm Dispatch</h5>
-                <p class="text-muted small mb-4">Funds are secured. Confirm that you have dispatched the item to the buyer.</p>
+                <h5 class="text-navy fw-bold mb-2">Confirm Dispatch</h5>
+                <p class="text-muted small mb-4">Funds are secured. Confirm that you have dispatched the item or service to the buyer.</p>
                 <form method="post" action="{% url 'seller_confirm_dispatch' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-warning btn-lg w-100 text-dark">Confirm Item Dispatched</button>
+                    <button type="submit" class="btn btn-warning btn-lg w-100 text-dark fw-semibold">
+                        <i class="bi bi-box-seam me-2"></i>Confirm Item Dispatched
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_seller_vault_form %}
-        <div class="card card-custom shadow-sm border-warning mb-3">
+        <div class="card card-custom border-warning mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Add Payout Details</h5>
+                <h5 class="text-navy fw-bold mb-2">Add Payout Details</h5>
                 <p class="text-muted small mb-4">Add the bank account where you want to be paid when this escrow completes.</p>
-                <a href="{% url 'seller_add_vault' contract.code %}" class="btn btn-primary-custom w-100">Enter Bank Details</a>
+                <a href="{% url 'seller_add_vault' contract.code %}" class="btn btn-primary-custom btn-lg w-100">
+                    <i class="bi bi-bank me-2"></i>Enter Bank Details
+                </a>
             </div>
         </div>
         {% endif %}
 
         {% if show_buyer_confirm_receipt %}
-        <div class="card card-custom shadow-sm border-primary-custom mb-3">
+        <div class="card card-custom border-primary-custom mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Confirm Item Received</h5>
+                <h5 class="text-navy fw-bold mb-2">Confirm Item Received</h5>
                 <p class="text-muted small mb-4">Have you received the item or service? Confirming starts your {{ contract.inspection_days }}-day inspection window.</p>
                 <form method="post" action="{% url 'buyer_confirm_receipt' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">Yes, I Received It</button>
+                    <button type="submit" class="btn btn-primary-custom btn-lg w-100">
+                        <i class="bi bi-box-arrow-in-down me-2"></i>Yes, I Received It
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_buyer_release_funds %}
-        <div class="card card-custom shadow-sm border-success mb-3">
+        <div class="card card-custom border-success mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Release Funds to Seller</h5>
+                <h5 class="text-navy fw-bold mb-2">Release Funds to Seller</h5>
                 <p class="text-muted small mb-4">Satisfied with the item? Releasing pays the seller immediately and cannot be undone.</p>
                 <form method="post" action="{% url 'buyer_release_funds' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-success btn-lg w-100">Release Funds Now</button>
+                    <button type="submit" class="btn btn-success btn-lg w-100 fw-semibold">
+                        <i class="bi bi-check-circle me-2"></i>Release Funds Now
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_buyer_raise_dispute %}
-        <div class="card card-custom shadow-sm border-danger mb-3">
+        <div class="card card-custom border-danger mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Raise Dispute</h5>
-                <p class="text-muted small mb-4">Something wrong? Raising a dispute locks the funds while we investigate.</p>
+                <h5 class="text-navy fw-bold mb-2">Raise Dispute</h5>
+                <p class="text-muted small mb-4">Something wrong? Raising a dispute locks the funds while our support team investigates.</p>
                 <form method="post" action="{% url 'buyer_raise_dispute' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-danger btn-lg w-100">Raise Dispute</button>
+                    <button type="submit" class="btn btn-danger btn-lg w-100 fw-semibold">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Raise Dispute
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_seller_raise_dispute %}
-        <div class="card card-custom shadow-sm border-danger mb-3">
+        <div class="card card-custom border-danger mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Raise Dispute</h5>
-                <p class="text-muted small mb-4">Something wrong? Raising a dispute locks the funds while we investigate.</p>
+                <h5 class="text-navy fw-bold mb-2">Raise Dispute</h5>
+                <p class="text-muted small mb-4">Something wrong? Raising a dispute locks the funds while our support team investigates.</p>
                 <form method="post" action="{% url 'seller_raise_dispute' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-danger btn-lg w-100">Raise Dispute</button>
+                    <button type="submit" class="btn btn-danger btn-lg w-100 fw-semibold">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Raise Dispute
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_cancel_button %}
-        <div class="card card-custom shadow-sm mb-3">
+        <div class="card card-custom mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Cancel Escrow</h5>
+                <h5 class="text-navy fw-bold mb-2">Cancel Escrow</h5>
                 <p class="text-muted small mb-4">No payment has been taken yet. Cancelling closes this escrow immediately.</p>
                 <form method="post" action="{% url 'cancel_escrow' contract.code %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-secondary btn-lg w-100">Cancel Escrow</button>
+                    <button type="submit" class="btn btn-outline-dark-custom btn-lg w-100">
+                        <i class="bi bi-x-circle me-2"></i>Cancel Escrow
+                    </button>
                 </form>
             </div>
         </div>
         {% endif %}
 
         {% if show_settlement_vault %}
-        <div class="card card-custom shadow-sm mb-3">
+        <div class="card card-custom mb-3">
             <div class="card-body p-4">
-                <h6 class="text-navy fw-bold mb-3">Settlement Vault</h6>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-bank text-accent fs-5"></i>
+                    <h6 class="text-navy fw-bold mb-0">Settlement Vault</h6>
+                </div>
                 <div class="row g-3 small">
                     <div class="col-6">
                         <div class="text-muted">Bank</div>
@@ -250,19 +272,24 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_seller_waiting %}
-        <div class="card card-custom shadow-sm mb-3">
+        <div class="card card-custom mb-3">
             <div class="card-body p-4 text-center">
-                <h5 class="text-navy fw-bold mb-3">Waiting for Buyer</h5>
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle text-warning" style="width:56px;height:56px;background:rgba(234, 179, 8, 0.1);">
+                    <i class="bi bi-hourglass-split fs-2"></i>
+                </div>
+                <h5 class="text-navy fw-bold mb-2">Waiting for Buyer</h5>
                 <p class="text-muted small mb-0">Payout details are saved. Funds move to your account once the buyer approves the item, or when the inspection window ends.</p>
             </div>
         </div>
         {% endif %}
 
         {% if show_seller_funds_released %}
-        <div class="card card-custom shadow-sm border-success">
+        <div class="card card-custom border-success mb-3">
             <div class="card-body p-4 text-center">
-                <div class="fs-3 mb-2">&#10003;</div>
-                <h5 class="text-navy fw-bold mb-3">Funds Released</h5>
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle text-success" style="width:56px;height:56px;background:rgba(22, 163, 74, 0.1);">
+                    <i class="bi bi-check-circle-fill fs-2"></i>
+                </div>
+                <h5 class="text-navy fw-bold mb-2">Funds Released</h5>
                 <p class="text-muted small mb-2">The buyer released the funds. The transfer to your bank account is being processed.</p>
                 <p class="fw-bold mono-text text-success fs-5 mb-0">{{ formatted_seller_receives }}</p>
             </div>
@@ -270,10 +297,12 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_seller_completed %}
-        <div class="card card-custom shadow-sm border-success">
+        <div class="card card-custom border-success mb-3">
             <div class="card-body p-4 text-center">
-                <div class="fs-3 mb-2">&#10003;</div>
-                <h5 class="text-navy fw-bold mb-3">Payment Complete</h5>
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle text-success" style="width:56px;height:56px;background:rgba(22, 163, 74, 0.1);">
+                    <i class="bi bi-check-circle-fill fs-2"></i>
+                </div>
+                <h5 class="text-navy fw-bold mb-2">Payment Complete</h5>
                 <p class="text-muted small mb-2">Funds have been sent to your bank account.</p>
                 <p class="fw-bold mono-text text-success fs-5 mb-0">{{ formatted_seller_receives }}</p>
             </div>
@@ -281,10 +310,12 @@ and while the tab is hidden, so a closed escrow costs nothing.
         {% endif %}
 
         {% if show_buyer_completed %}
-        <div class="card card-custom shadow-sm border-success">
+        <div class="card card-custom border-success mb-3">
             <div class="card-body p-4 text-center">
-                <div class="fs-3 mb-2">&#10003;</div>
-                <h5 class="text-navy fw-bold mb-3">Escrow Complete</h5>
+                <div class="d-inline-flex align-items-center justify-content-center mb-3 rounded-circle text-success" style="width:56px;height:56px;background:rgba(22, 163, 74, 0.1);">
+                    <i class="bi bi-check-circle-fill fs-2"></i>
+                </div>
+                <h5 class="text-navy fw-bold mb-2">Escrow Complete</h5>
                 <p class="text-muted small mb-0">Funds have been released to the seller. This transaction is now closed.</p>
             </div>
         </div>

@@ -1,6 +1,5 @@
 {% extends 'base.html' %}
 {% block title %}Join Escrow — Trustcrow{% endblock %}
-{% block body_class %}form-dark{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-md-10 col-lg-6">
@@ -23,6 +22,7 @@
                     <div class="mb-3">
                         <label for="code" class="form-label">Escrow Code</label>
                         <input type="text" name="code" id="code" class="form-control mono-text" placeholder="e.g., aB3xK9mP2" autocapitalize="characters" spellcheck="false" autocomplete="off" required autofocus>
+                        <small class="text-muted-custom d-block mt-1">Found in your invite email or notification from the creator.</small>
                     </div>
                     <div class="mb-3">
                         <label for="email" class="form-label">Your Email Address</label>
@@ -32,6 +32,10 @@
                         <i class="bi bi-arrow-right-circle me-2"></i>Verify & Continue
                     </button>
                 </form>
+
+                <div class="text-center mt-4">
+                    <a href="{% url 'home' %}" class="text-muted-custom small text-decoration-none"><i class="bi bi-arrow-left me-1"></i>Back to Home</a>
+                </div>
             </div>
         </div>
     </div>
